@@ -1,0 +1,40 @@
+{
+  "name": "kudlab-backend",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24 <25" },
+  "scripts": {
+    "dev": "node --env-file-if-exists=.env --import tsx --watch src/index.ts",
+    "start": "node --env-file-if-exists=.env --import tsx src/index.ts",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run",
+    "db:generate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs generate",
+    "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "auth:generate": "node --env-file-if-exists=.env node_modules/auth/dist/index.mjs generate --config src/auth/auth.ts --output src/db/schema/auth.ts -y"
+  },
+  "dependencies": {
+    "@better-auth/drizzle-adapter": "1.7.7",
+    "@hono/node-server": "1.19.17",
+    "better-auth": "1.7.7",
+    "drizzle-orm": "0.45.4",
+    "hono": "4.13.13",
+    "jose": "6.1.3",
+    "pg": "8.16.3",
+    "zod": "4.3.6",
+    "nodemailer": "10.1.0"
+  },
+  "devDependencies": {
+    "auth": "1.7.7",
+    "@types/node": "24.10.0",
+    "@types/pg": "8.15.6",
+    "@types/nodemailer": "7.0.10",
+    "@types/smtp-server": "3.5.13",
+    "drizzle-kit": "0.31.10",
+    "smtp-server": "3.19.21",
+    "tsx": "4.20.6",
+    "typescript": "5.9.3",
+    "vitest": "5.0.4",
+    "yaml": "2.9.1"
+  }
+}

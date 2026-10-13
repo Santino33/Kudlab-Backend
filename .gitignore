@@ -1,1 +1,11 @@
 /docs/original/
+.env
+.env.*
+!.env.example
+node_modules/
+*.dump
+*.sql.gz
+*.pem
+*.key
+coverage/
+*.log
