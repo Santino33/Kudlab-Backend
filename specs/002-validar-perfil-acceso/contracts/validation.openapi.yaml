@@ -1,0 +1,193 @@
+openapi: 3.1.0
+info:
+  title: Kudlab - Validación de perfil en cuentas existentes
+  version: 0.1.0
+  description: >-
+    Subconjunto propuesto del contrato de 001 para RF-002 V3 (propuesto, no aprobado).
+    Mantiene las rutas, sesiones y transiciones de
+    specs/001-gestionar-cuentas-roles/contracts/accounts.openapi.yaml; los errores
+    de campo son una ampliación propuesta para el consumidor SPA.
+servers:
+  - url: /
+security:
+  - sessionCookie: []
+  - sessionBearer: []
+paths:
+  /api/v1/accounts:
+    post:
+      summary: Validar perfil y crear cuenta docente pendiente
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateAccount'
+      responses:
+        '201':
+          description: Cuenta pendiente de activación e invitación iniciada.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/InvalidProfile' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/accounts/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, minLength: 1 }
+    patch:
+      summary: Validar edición de nombre o solicitar cambio de correo
+      description: >-
+        Si la cuenta está activa, el correo nuevo queda pendiente hasta la
+        confirmación del titular; si está pendiente, se sustituye la invitación.
+        La edición del nombre no cambia estado ni rol.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/EditAccount' }
+      responses:
+        '200':
+          description: Perfil o solicitud de cambio de correo registrados.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Account' }
+        '400': { $ref: '#/components/responses/InvalidProfile' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '404': { $ref: '#/components/responses/NotFound' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/account-invitations/accept:
+    post:
+      summary: Validar contraseña al aceptar invitación de 001
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, password]
+              additionalProperties: false
+              properties:
+                token: { type: string, minLength: 1, writeOnly: true }
+                password:
+                  type: string
+                  minLength: 8
+                  pattern: '^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9]).{8,}$'
+                  writeOnly: true
+      responses:
+        '200':
+          description: Cuenta activada; no inicia sesión implícitamente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [status]
+                properties:
+                  status: { type: string, const: ACTIVA }
+        '400': { $ref: '#/components/responses/InvalidProfile' }
+        '409': { $ref: '#/components/responses/Conflict' }
+        '410': { $ref: '#/components/responses/Expired' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: Nombre efectivo sujeto a la configuración de Better Auth 1.7.7.
+    sessionBearer:
+      type: http
+      scheme: bearer
+      bearerFormat: opaque-session-token
+      description: Token opaco de sesión, no JWT aislado.
+  schemas:
+    InstitutionalEmail:
+      type: string
+      format: email
+      pattern: '^[^@\s]+@(?:[A-Za-z0-9-]+\.)+[eE][dD][uU]\.[cC][oO]$'
+    CreateAccount:
+      type: object
+      required: [name, email, role]
+      additionalProperties: false
+      properties:
+        name: { type: string, minLength: 1, description: No admite solo espacios. }
+        email: { $ref: '#/components/schemas/InstitutionalEmail' }
+        role: { type: string, const: TEACHER }
+    EditAccount:
+      type: object
+      additionalProperties: false
+      minProperties: 1
+      properties:
+        name: { type: string, minLength: 1, description: No admite solo espacios. }
+        email: { $ref: '#/components/schemas/InstitutionalEmail' }
+    Account:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: { type: string }
+        name: { type: string }
+        email: { type: string, format: email }
+        pendingEmail: { type: string, format: email }
+        role: { type: string, enum: [ADMIN, TEACHER] }
+        status: { type: string, enum: [PENDIENTE, ACTIVA, INACTIVA] }
+        createdAt: { type: string, format: date-time }
+        deliveryStatus: { type: string, enum: [PENDIENTE, ENVIADA, ERROR] }
+        invitationExpiresAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+        fields:
+          type: array
+          description: Solo para administrador autorizado o reglas de contraseña del titular con invitación válida; sin valores secretos ni correos ajenos.
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: { type: string, enum: [name, email, role, password] }
+              reason: { type: string }
+  responses:
+    InvalidProfile:
+      description: Dato de perfil inválido o contraseña que no cumple la política.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthenticated:
+      description: Sin sesión vigente; no revela datos de terceros.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Forbidden:
+      description: Rol o estado no permite gestionar cuentas.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    NotFound:
+      description: Objetivo inexistente o no visible para el actor.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Conflict:
+      description: Correo ocupado, estado incompatible o correo activo sin cambio.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Expired:
+      description: Invitación inválida, expirada o consumida.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: Operación no confirmada por falta de verificación o entrega.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }

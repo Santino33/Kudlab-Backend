@@ -25,4 +25,23 @@ describe('US2 contrato de edición y ascenso', () => {
     const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
     expect((await request('/api/v1/account-email-changes/confirm', 'POST', { token })).status).toBe(200);
   });
+  it('explica campos inválidos de PATCH solo a un administrador y conserva rol y estado', async () => {
+    const { account, admin, teacher } = await inviteTeacher();
+    for (const [payload, field] of [
+      [{ name: '   ' }, 'name'],
+      [{ email: 'bad@not.edu.co.attacker' }, 'email'],
+      [{ role: 'ADMIN' }, undefined],
+    ] as const) {
+      const response = await request(`/api/v1/accounts/${account.id}`, 'PATCH', payload, admin);
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      if (field) expect(body.fields).toEqual([{ field, reason: expect.any(String) }]);
+      expect(JSON.stringify(body)).not.toContain('attacker');
+    }
+    const denied = await request(`/api/v1/accounts/${account.id}`, 'PATCH', { name: ' ' }, teacher);
+    expect(denied.status).toBe(403);
+    expect((await denied.json()).fields).toBeUndefined();
+    expect(await (await request(`/api/v1/accounts/${account.id}`, 'GET', undefined, admin)).json())
+      .toMatchObject({ name: 'Docente Test', role: 'TEACHER', status: 'ACTIVA' });
+  });
 });

@@ -6,7 +6,7 @@ import { invitations, userAccounts } from '../../db/schema/accounts.js';
 import { user, account as credentials } from '../../db/schema/auth.js';
 import { auth } from '../../auth/auth.js';
 import { INVITATION_TTL_MS, loadEnv } from '../../config/env.js';
-import { AccountError } from './accounts.errors.js';
+import { AccountError, parseProfileInput } from './accounts.errors.js';
 import { passwordSchema } from './accounts.validation.js';
 import { recordAudit } from './audit.service.js';
 import { makeMailer } from './invitations.mailer.js';
@@ -43,8 +43,7 @@ export async function deliverInvitation(id: string, email: string, token: string
   }
 }
 
-export async function acceptInvitation(token: string, password: string) {
-  passwordSchema.parse(password);
+export async function acceptInvitation(token: string, submittedPassword: unknown) {
   const digest = digestToken(token);
   return db.transaction(async (tx) => {
     const [candidate] = await tx.select({ accountId: invitations.accountId }).from(invitations).where(eq(invitations.tokenDigest, digest));
@@ -56,6 +55,7 @@ export async function acceptInvitation(token: string, password: string) {
       throw new AccountError(410, 'INVITATION_EXPIRED', 'Invitación inválida o vencida');
     if (account.status !== 'PENDIENTE' || account.emailNormalized !== invitation.email_normalized || account.role !== 'TEACHER')
       throw new AccountError(409, 'ACCOUNT_CONFLICT', 'La cuenta no puede activarse');
+    const password = parseProfileInput(passwordSchema, submittedPassword, 'password');
     let [identity] = await db.select().from(user).where(eq(user.email, account.emailNormalized));
     if (!identity) {
       const created = await auth.api.createUser({ body: { email: account.emailNormalized, name: account.fullName, password, role: 'teacher' } });

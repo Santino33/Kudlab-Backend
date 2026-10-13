@@ -95,4 +95,42 @@ describe('US2 seguridad y correo', () => {
     expect((await request(`/api/v1/accounts/${account.id}`, 'PATCH', { email: 'reserved@pilot.edu.co' }, admin)).status).toBe(200);
     expect((await request('/api/v1/accounts', 'POST', { name: 'Otra', email: 'reserved@pilot.edu.co', role: 'TEACHER' }, admin)).status).toBe(409);
   });
+  it('edición compuesta inválida no altera ni reserva correo, nombre o auditoría; válida espera verificación', async () => {
+    const { account, admin, teacher } = await inviteTeacher();
+    const originalAudit = await (await request(`/api/v1/accounts/${account.id}/audit`, 'GET', undefined, admin)).json();
+    const invalid = await request(`/api/v1/accounts/${account.id}`, 'PATCH', { name: 'Nombre nuevo', email: 'fuera@example.org' }, admin);
+    expect(invalid.status).toBe(400);
+    const taken = await request(`/api/v1/accounts/${account.id}`, 'PATCH', { name: 'Nombre nuevo', email: 'admin@pilot.edu.co' }, admin);
+    expect(taken.status).toBe(409);
+    expect(await (await request(`/api/v1/accounts/${account.id}`, 'GET', undefined, admin)).json())
+      .toMatchObject({ name: 'Docente Test', email: 'teacher@pilot.edu.co', role: 'TEACHER', status: 'ACTIVA' });
+    expect((await db.select().from(emailChanges).where(eq(emailChanges.accountId, account.id)))).toHaveLength(0);
+    expect(await (await request(`/api/v1/accounts/${account.id}/audit`, 'GET', undefined, admin)).json()).toEqual(originalAudit);
+    const valid = await request(`/api/v1/accounts/${account.id}`, 'PATCH', { name: 'Nuevo', email: 'fresh@pilot.edu.co' }, admin);
+    expect(valid.status).toBe(200);
+    expect(await valid.json()).toMatchObject({ name: 'Nuevo', email: 'teacher@pilot.edu.co', pendingEmail: 'fresh@pilot.edu.co' });
+    const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+    expect((await request('/api/v1/account-email-changes/confirm', 'POST', { token })).status).toBe(200);
+    expect((await request('/api/v1/accounts', 'GET', undefined, teacher)).status).toBe(401);
+    expect(await (await request(`/api/v1/accounts/${account.id}`, 'GET', undefined, admin)).json())
+      .toMatchObject({ name: 'Nuevo', email: 'fresh@pilot.edu.co', role: 'TEACHER' });
+  });
+  it('SC-002: veinte altas y veinte ediciones válidas conservan estado y rol', async () => {
+    const admin = await login();
+    for (let i = 0; i < 20; i++) {
+      const response = await request('/api/v1/accounts', 'POST',
+        { name: `Docente ${i}`, email: `bulk${i}@pilot.edu.co`, role: 'TEACHER' }, admin);
+      expect(response.status).toBe(201);
+      const created = await response.json();
+      expect(created).toMatchObject({ name: `Docente ${i}`, status: 'PENDIENTE', role: 'TEACHER' });
+      const edited = await request(`/api/v1/accounts/${created.id}`, 'PATCH',
+        { name: `Docente nuevo ${i}`, email: `corrected${i}@pilot.edu.co` }, admin);
+      expect(edited.status).toBe(200);
+      expect(await edited.json()).toMatchObject({ id: created.id, name: `Docente nuevo ${i}`,
+        email: `corrected${i}@pilot.edu.co`, status: 'PENDIENTE', role: 'TEACHER' });
+    }
+    const all = await (await request('/api/v1/accounts?limit=100', 'GET', undefined, admin)).json();
+    expect(all.total).toBe(21); // 20 docentes y administrador inicial.
+    expect(all.items.filter((item: { status: string }) => item.status === 'PENDIENTE')).toHaveLength(20);
+  });
 });
