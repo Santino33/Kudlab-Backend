@@ -10,6 +10,7 @@ import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
 import { login, request, reset } from '../helpers.js';
 
 const spec = parse(readFileSync('specs/001-gestionar-cuentas-roles/contracts/accounts.openapi.yaml', 'utf8'));
+const profileSpec = parse(readFileSync('specs/002-validar-perfil-acceso/contracts/validation.openapi.yaml', 'utf8'));
 const validator = new Ajv2020({ strict: false, allErrors: true });
 (addFormatsModule as unknown as FormatsPlugin)(validator);
 
@@ -21,6 +22,17 @@ async function matchesContract(path: string, method: string, response: Response)
   const schema = resolved.content?.['application/json']?.schema;
   expect(schema, `${method.toUpperCase()} ${path} HTTP ${response.status} sin esquema`).toBeDefined();
   const verify = validator.compile({ ...schema, components: spec.components });
+  const body = await response.json();
+  expect(verify(body), JSON.stringify(verify.errors)).toBe(true);
+  return body;
+}
+
+async function matchesProfileContract(path: string, method: string, response: Response) {
+  const entry = profileSpec.paths[path][method].responses[String(response.status)];
+  expect(entry, `${method.toUpperCase()} ${path}: HTTP ${response.status} sin contrato de perfil`).toBeDefined();
+  const resolved = entry.$ref ? entry.$ref.slice(2).split('/').reduce((value: unknown, key: string) =>
+    (value as Record<string, unknown>)[key], profileSpec) : entry;
+  const verify = validator.compile({ ...resolved.content['application/json'].schema, components: profileSpec.components });
   const body = await response.json();
   expect(verify(body), JSON.stringify(verify.errors)).toBe(true);
   return body;
@@ -103,4 +115,29 @@ it('valida respuestas y errores HTTP contra los esquemas OpenAPI', async () => {
     delete process.env.MAIL_HOST; delete process.env.MAIL_PORT; delete process.env.MAIL_USER;
     delete process.env.MAIL_PASSWORD; delete process.env.MAIL_FROM;
   }
+});
+
+it('valida el subconjunto 002 sin sustituir los recorridos de cuentas de 001', async () => {
+  const admin = await login();
+  const base = '/api/v1/accounts';
+  const invalid = await matchesProfileContract(base, 'post',
+    await request(base, 'POST', { name: ' ', email: 'docente@pilot.edu.co', role: 'TEACHER' }, admin));
+  expect(invalid.fields).toEqual([{ field: 'name', reason: expect.any(String) }]);
+  const created = await matchesProfileContract(base, 'post',
+    await request(base, 'POST', { name: 'Docente', email: 'docente@pilot.edu.co', role: 'TEACHER' }, admin));
+  expect(created.status).toBe('PENDIENTE');
+  const duplicate = await matchesProfileContract(base, 'post',
+    await request(base, 'POST', { name: 'Otra', email: 'docente@pilot.edu.co', role: 'TEACHER' }, admin));
+  expect(duplicate.code).toBe('CONFLICT');
+  expect(JSON.stringify(duplicate)).not.toContain('docente@pilot.edu.co');
+  const changed = await matchesProfileContract('/api/v1/accounts/{id}', 'patch',
+    await request(`${base}/${created.id}`, 'PATCH', { name: 'Docente Dos' }, admin));
+  expect(changed.name).toBe('Docente Dos');
+  const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+  const invalidPassword = await matchesProfileContract('/api/v1/account-invitations/accept', 'post',
+    await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'a' }));
+  expect(invalidPassword.fields).toEqual([{ field: 'password', reason: expect.any(String) }]);
+  const accepted = await matchesProfileContract('/api/v1/account-invitations/accept', 'post',
+    await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' }));
+  expect(accepted.status).toBe('ACTIVA');
 });

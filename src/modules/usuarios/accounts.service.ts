@@ -1,7 +1,7 @@
 import { eq, count, desc, sql } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import { invitations, userAccounts } from '../../db/schema/accounts.js';
-import { AccountError } from './accounts.errors.js';
+import { AccountError, parseProfileInput } from './accounts.errors.js';
 import { createAccountSchema, updateAccountSchema } from './accounts.validation.js';
 import { recordAudit } from './audit.service.js';
 import { deliverInvitation, issueInvitation } from './invitations.service.js';
@@ -41,7 +41,7 @@ export async function listAccounts(limit: number, offset: number, status?: strin
     total: totals[0]?.value ?? 0, limit, offset };
 }
 export async function createAccount(data: unknown, actor: string) {
-  const input = createAccountSchema.parse(data);
+  const input = parseProfileInput(createAccountSchema, data);
   const { account, invitation, token } = await db.transaction(async (tx) => {
     const [account] = await tx.insert(userAccounts).values({ emailNormalized: input.email, fullName: input.name,
       role: 'TEACHER', status: 'PENDIENTE' }).returning();
@@ -54,7 +54,7 @@ export async function createAccount(data: unknown, actor: string) {
 }
 
 export async function updateAccount(id: string, payload: unknown, actor: string) {
-  const data = updateAccountSchema.parse(payload);
+  const data = parseProfileInput(updateAccountSchema, payload);
   if (data.email) {
     await changeEmail(id, data.email, actor, data.name);
     return getAccount(id);

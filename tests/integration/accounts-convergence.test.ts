@@ -37,6 +37,38 @@ describe('convergencia: reservas, concurrencia y autoría', () => {
     expect(results.map((response) => response.status).sort()).toEqual([200, 409]);
     expect((await db.select().from(userAccounts)).filter((row) => row.emailNormalized === 'shared@pilot.edu.co' || row.pendingEmailNormalized === 'shared@pilot.edu.co')).toHaveLength(1);
   });
+  it('diez pares de altas simultáneas asignan a lo sumo un propietario por correo', async () => {
+    const admin = await login();
+    for (let i = 0; i < 10; i++) {
+      const email = `pair${i}@pilot.edu.co`;
+      const outcomes = await Promise.all([
+        request('/api/v1/accounts', 'POST', { name: 'Primera', email: email.toUpperCase(), role: 'TEACHER' }, admin),
+        request('/api/v1/accounts', 'POST', { name: 'Segunda', email, role: 'TEACHER' }, admin),
+      ]);
+      expect(outcomes.map((x) => x.status).sort()).toEqual([201, 409]);
+      const [winner] = await db.select().from(userAccounts).where(eq(userAccounts.emailNormalized, email));
+      expect(winner?.status).toBe('PENDIENTE');
+      expect((await db.select().from(userAccounts).where(eq(userAccounts.emailNormalized, email)))).toHaveLength(1);
+    }
+  });
+  it('diez pares de ediciones concurrentes nunca cambian el nombre del perdedor', async () => {
+    const admin = await login();
+    const first = await (await request('/api/v1/accounts', 'POST', { name: 'Primera', email: 'one@pilot.edu.co', role: 'TEACHER' }, admin)).json();
+    const second = await (await request('/api/v1/accounts', 'POST', { name: 'Segunda', email: 'two@pilot.edu.co', role: 'TEACHER' }, admin)).json();
+    for (let i = 0; i < 10; i++) {
+      const email = `shared${i}@pilot.edu.co`;
+      const outcomes = await Promise.all([
+        request(`/api/v1/accounts/${first.id}`, 'PATCH', { name: `Primera ${i}`, email }, admin),
+        request(`/api/v1/accounts/${second.id}`, 'PATCH', { name: `Segunda ${i}`, email: email.toUpperCase() }, admin),
+      ]);
+      expect(outcomes.map((x) => x.status).sort()).toEqual([200, 409]);
+      const [a] = await db.select().from(userAccounts).where(eq(userAccounts.id, first.id));
+      const [b] = await db.select().from(userAccounts).where(eq(userAccounts.id, second.id));
+      expect([a!.emailNormalized, b!.emailNormalized].filter((value) => value === email)).toHaveLength(1);
+      if (a!.emailNormalized !== email) expect(a!.fullName).not.toBe(`Primera ${i}`);
+      if (b!.emailNormalized !== email) expect(b!.fullName).not.toBe(`Segunda ${i}`);
+    }
+  });
 
   it('el actor de UPDATE del correo es el ADMIN solicitante, no el usuario destino', async () => {
     const { account, admin } = await inviteTeacher();

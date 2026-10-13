@@ -26,6 +26,27 @@ describe('US1: contrato HTTP de invitaciones', () => {
     expect((await request('/api/v1/accounts', 'POST', { name: 'X', email: 'x@other.org', role: 'TEACHER' }, headers)).status).toBe(400);
     expect((await request('/api/v1/accounts', 'POST', { name: 'X', email: 'x@pilot.edu.co', role: 'ADMIN' }, headers)).status).toBe(400);
   });
+  it('informa solo campos corregibles a ADMIN sin exponer datos de entrada ni terceros', async () => {
+    const admin = await login();
+    for (const [payload, field] of [
+      [{ email: 'ok@pilot.edu.co', role: 'TEACHER' }, 'name'],
+      [{ name: '   ', email: 'ok@pilot.edu.co', role: 'TEACHER' }, 'name'],
+      [{ name: 'Docente', role: 'TEACHER' }, 'email'],
+      [{ name: 'Docente', email: 'abc@pilot.edu.co.evil', role: 'TEACHER' }, 'email'],
+      [{ name: 'Docente', email: 'ok@pilot.edu.co' }, 'role'],
+    ] as const) {
+      const response = await request('/api/v1/accounts', 'POST', payload, admin);
+      expect(response.status).toBe(400);
+      const body = await response.json();
+      expect(body).toMatchObject({ code: 'INVALID_INPUT', fields: [{ field, reason: expect.any(String) }] });
+      expect(JSON.stringify(body)).not.toContain('ok@pilot.edu.co');
+      expect(JSON.stringify(body)).not.toContain('evil');
+    }
+    const unauthenticated = await request('/api/v1/accounts', 'POST', { name: ' ', email: 'invalid', role: 'ADMIN' });
+    expect(unauthenticated.status).toBe(401);
+    expect((await unauthenticated.json()).fields).toBeUndefined();
+    expect((await (await request('/api/v1/accounts', 'GET', undefined, admin)).json()).total).toBe(1);
+  });
   it('aplica 403/409/404 y oculta cuentas a docente', async () => {
     const { admin, teacher } = await inviteTeacher();
     expect((await request('/api/v1/accounts', 'GET', undefined, teacher)).status).toBe(403);

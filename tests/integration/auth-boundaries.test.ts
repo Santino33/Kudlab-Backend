@@ -32,6 +32,32 @@ describe('fronteras de autenticación', () => {
     expect((await request('/api/v1/admin-role-requests', 'GET', undefined, teacher)).status).toBe(403);
     expect((await request('/api/v1/accounts', 'GET', undefined, admin)).status).toBe(200);
   });
+  it('deniega solicitudes directas antes de validar el cuerpo y aplica cambios de rol desde la primera petición', async () => {
+    const { account, admin, teacher } = await inviteTeacher();
+    const url = `/api/v1/accounts/${account.id}`;
+    for (const [method, path, body] of [
+      ['GET', '/api/v1/accounts', undefined],
+      ['POST', '/api/v1/accounts', { name: ' ', email: 'bad', role: 'ADMIN' }],
+      ['PATCH', url, { name: ' ' }],
+    ] as const) {
+      for (const headers of [undefined, teacher]) {
+        const response = await request(path, method, body, headers);
+        expect(response.status).toBe(headers ? 403 : 401);
+        expect((await response.json()).fields).toBeUndefined();
+      }
+    }
+    expect((await request('/api/auth/admin/list-users', 'GET', undefined, admin)).status).toBe(403);
+    const promoted = await (await request('/api/v1/admin-role-requests', 'POST', undefined, teacher)).json();
+    expect((await request(`/api/v1/admin-role-requests/${promoted.id}/approve`, 'POST', undefined, admin)).status).toBe(200);
+    expect((await request('/api/v1/accounts', 'GET', undefined, teacher)).status).toBe(200);
+    expect((await request(`${url}/role`, 'PUT', { role: 'TEACHER' }, admin)).status).toBe(200);
+    const denied = await request(url, 'PATCH', { name: 'Modificado sin permiso' }, teacher);
+    expect(denied.status).toBe(403);
+    expect((await denied.json()).fields).toBeUndefined();
+    expect((await (await request(url, 'GET', undefined, admin)).json()).name).toBe('Docente Test');
+    await db.update(userAccounts).set({ status: 'INACTIVA' }).where(eq(userAccounts.id, account.id));
+    expect((await request('/api/v1/accounts', 'GET', undefined, teacher)).status).toBe(403);
+  });
   it('bootstrap de tres arranques no altera credenciales; sin configuración no crea cuenta', async () => {
     await bootstrapAdmin(); await bootstrapAdmin();
     expect((await db.select().from(userAccounts))).toHaveLength(1);
@@ -42,6 +68,17 @@ describe('fronteras de autenticación', () => {
     try { await expect(bootstrapAdmin()).rejects.toThrow(); }
     finally { process.env.BOOTSTRAP_ADMIN_PASSWORD = original; }
     expect(await db.select().from(userAccounts)).toHaveLength(0);
+  });
+  it('bootstrap tampoco crea identidad con contraseña contraria a la política compartida', async () => {
+    await db.execute(sql`truncate account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" cascade`);
+    const original = process.env.BOOTSTRAP_ADMIN_PASSWORD;
+    process.env.BOOTSTRAP_ADMIN_PASSWORD = 'onlylowercase123';
+    try { await expect(bootstrapAdmin()).rejects.toThrow(); }
+    finally { process.env.BOOTSTRAP_ADMIN_PASSWORD = original; }
+    expect(await db.select().from(userAccounts)).toHaveLength(0);
+    expect(await db.select().from(user)).toHaveLength(0);
+    await bootstrapAdmin();
+    await login();
   });
   it('el bootstrap revierte identidad y hash Better Auth si falla la auditoría', async () => {
     await db.execute(sql`truncate account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" cascade`);

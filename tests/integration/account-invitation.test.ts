@@ -27,6 +27,24 @@ describe('US1: unicidad y vigencia', () => {
     await db.update(invitations).set({ createdAt: new Date(Date.now() - 7 * 86400000), expiresAt: new Date(Date.now() - 7 * 86400000 + 7 * 86400000) }).where(eq(invitations.emailNormalized, 'docente@pilot.edu.co'));
     expect((await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' })).status).toBe(410);
   });
+  it('un token inválido no permite conocer reglas de contraseña y uno válido sí permite corregirlas', async () => {
+    const admin = await login();
+    expect((await request('/api/v1/accounts', 'POST', { name: 'Docente', email: 'policy@pilot.edu.co', role: 'TEACHER' }, admin)).status).toBe(201);
+    const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+    const unknown = await request('/api/v1/account-invitations/accept', 'POST', { token: 'inventado', password: 'a' });
+    expect(unknown.status).toBe(410);
+    expect((await unknown.json()).fields).toBeUndefined();
+    for (const password of ['Aa1', 'onlylowercase1', 'ONLYUPPERCASE1', 'NoNumberHere']) {
+      const result = await request('/api/v1/account-invitations/accept', 'POST', { token, password });
+      expect(result.status).toBe(400);
+      const body = await result.json();
+      expect(body.fields).toEqual([{ field: 'password', reason: expect.any(String) }]);
+      expect(JSON.stringify(body)).not.toContain(password);
+      const [invitation] = await db.select().from(invitations).where(eq(invitations.emailNormalized, 'policy@pilot.edu.co'));
+      expect(invitation?.consumedAt).toBeNull();
+    }
+    expect((await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' })).status).toBe(200);
+  });
   it('fallo SMTP conserva cuenta y entrega ERROR sin exponer secreto', async () => {
     const headers = await login();
     process.env.MAIL_MODE = 'smtp';
