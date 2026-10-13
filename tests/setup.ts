@@ -1,0 +1,10 @@
+process.env.NODE_ENV = 'test';
+process.env.DATABASE_URL ??= 'postgres://postgres:local_test_only@127.0.0.1:55432/kudlab_test';
+process.env.BETTER_AUTH_SECRET ??= 'test-secret-only-not-for-production-123456789012345';
+process.env.BETTER_AUTH_URL ??= 'http://localhost:3000';
+process.env.SPA_ORIGIN ??= 'http://localhost:5173';
+process.env.INVITATION_BASE_URL ??= 'http://localhost:5173/accept';
+process.env.MAIL_MODE = 'capture';
+process.env.BOOTSTRAP_ADMIN_NAME ??= 'Test Administrator';
+process.env.BOOTSTRAP_ADMIN_EMAIL ??= 'admin@pilot.edu.co';
+process.env.BOOTSTRAP_ADMIN_PASSWORD ??= 'TestingA123';

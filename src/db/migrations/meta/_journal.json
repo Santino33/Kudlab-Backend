@@ -1,0 +1,48 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1791855763719,
+      "tag": "0001_accounts",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1791856133780,
+      "tag": "0001_audit-integrity",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1791856394161,
+      "tag": "0002_email_changes",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1791863218769,
+      "tag": "0003_account-email-claims",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1791863336603,
+      "tag": "0004_email_change_actor",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1791863663061,
+      "tag": "0005_invitation_latest_index",
+      "breakpoints": true
+    }
+  ]
+}

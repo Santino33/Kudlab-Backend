@@ -1,0 +1,2 @@
+CREATE UNIQUE INDEX "email_change_pending_unique" ON "account_email_changes" USING btree ("new_email_normalized") WHERE "account_email_changes"."consumed_at" is null and "account_email_changes"."invalidated_at" is null;--> statement-breakpoint
+ALTER TABLE "user_accounts" ADD CONSTRAINT "pending_email_check" CHECK ("user_accounts"."pending_email_normalized" is null or ("user_accounts"."pending_email_normalized" = lower("user_accounts"."pending_email_normalized") and "user_accounts"."pending_email_normalized" ~ '^[^@[:space:]]+@([a-z0-9-]+\.)+edu\.co$'));
