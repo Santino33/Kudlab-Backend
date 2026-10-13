@@ -1,0 +1,5 @@
+# RF-014 (V3, propuesta): disponibilidad del banco piloto
+
+**Actor:** administrador autorizado; habilita/deshabilita tareas fijas sin eliminar definición ni historial. V3 RF-014 califica TG-01…06 como evaluativas, pero F §4 pp. 38–40 excluye TG-06 de indicadores; TG-00 es práctica. [V3](../../../../original/requisitos_V3.xlsx), [A CU-TD-02 p. 37](../../../../original/3%20ANALISIS%20DEL%20PROYECTO.docx.pdf), [F](../../../../original/Fundamento%20teorico.docx.pdf).
+
+**Flujo:** elegir tarea fija → comprobar permiso → cambiar disponibilidad → guardar versión/estado → dejar de ofrecer tarea deshabilitada a nuevas asignaciones o inicios; historia ya registrada permanece. **Pruebas/criterios:** deshabilitada no recibe nuevas asignaciones ni nuevas ejecuciones; al rehabilitar vuelve a mostrarse a autorizados; resultados anteriores consultables; tarea inexistente o usuario no autorizado no modifica estado. **Pendiente explícito de V3:** comportamiento de asignaciones ya hechas y sesiones en curso; definición de qué TG cuentan como evaluativas. [Modelo](../domain-model.md), [configuración](recursos-configuracion.md).

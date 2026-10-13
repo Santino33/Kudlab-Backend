@@ -1,0 +1,14 @@
+# Académico: estudiantes, grupos, consentimiento y notas
+
+1. **Propósito:** identificar participantes, responsabilidad docente, evidencia de consentimiento y notas por área/periodo (V3 RF-005…009).
+2. **Alcance/límites:** registro, edición, inactivación y consulta; consentimiento y notas. No define PIAR ni accede a sistema académico externo ([contexto PNG](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/01-Contexto/contextoGeneral/01-contexto-general.png)).
+3. **Actores/permisos:** docente registra/edita/consulta su ámbito; administrador consulta, inactiva y gestiona evidencia según A §7.1 p. 40; V3 exige usuario autorizado y validación del ámbito en servidor. Acudiente aporta consentimiento externamente.
+4. **Vocabulario:** estudiante activo ≠ consentimiento vigente; grupo vincula docente/año; nota académica no es indicador cognitivo.
+5. **Reglas:** datos mínimos e identificación sin duplicados; no activar ni comenzar tarea sin consentimiento vigente; revocación impide nuevas tareas; inactivar conserva historial e impide asignar/iniciar; notas usan escala institucional por aprobar (V3 RF-005…009).
+6. **Entidades:** `groups` 1:N `students` y asignaciones; estudiante 1:1 consentimiento según ERD, 1:N notas, observaciones y sesiones; [modelo](domain-model.md).
+7. **Flujo:** datos → validación → evidencia → activar o pendiente → consulta/edición/inactivación; nota: seleccionar estudiante/área/periodo → validar escala y ámbito → guardar/consultar ([actividad draw.io](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/05-actividades/02-Actividades-gestion-estudiantes/02-Actividades-gestion-estudiantes)).
+8. **Integración:** Usuarios autoriza docente; Tareas bloquea sin autorización legal; Seguimiento/Evolución integra notas y referencia estudiante; Cloudflare R2 propuesto almacena evidencia, BD metadatos ([PUML](../../../original/C4/UML/integracionCloudflare.puml)).
+9. **Arquitectura/seguridad:** servidor debe controlar consentimiento en activación e inicio (V3 RF-008, D ADR-03); evidencia restringida, minimizar PII; D §2.2 p. 6 documenta HTTP 400 en validación del registro, sin ruta.
+10. **Dependencias:** definición de datos mínimos, escala de notas, vigencia/revocación, alcance de grupos y conservación pendiente de aprobación.
+11. **Features:** [registro](features/registrar-estudiante.md), [actualización/inactivación](features/actualizar-inactivar-estudiante.md), [consulta](features/consultar-estudiantes.md), [consentimiento](features/consentimiento.md), [notas](features/notas-academicas.md).
+12. **Fuentes:** [V3 RF-005…009](../../../original/requisitos_V3.xlsx), [A §7.1 p. 40 y §7.4 pp. 46–47](../../../original/3%20ANALISIS%20DEL%20PROYECTO.docx.pdf), [D §§2.2, 3, 6 pp. 5–10, 14–15](../../../original/DESCRIPCI%C3%93N%20DE%20DISE%C3%91O%20DE%20SOFTWARE.docx.pdf), [CU PNG](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/02-casos-de-uso/02-cu-gestion-estudiantes/02-cu-gestion-estudiantes.png).

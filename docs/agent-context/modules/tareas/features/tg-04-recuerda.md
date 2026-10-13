@@ -1,0 +1,7 @@
+# TG-04: Recuerda y repite (~2–3 min)
+
+**Objetivo:** recordar secuencia verbal inmediata en orden, sin manipulación matemática ni inferencia de capacidad general estandarizada. [F ficha TG-04 pp. 33–35, §5.8 pp. 47–48](../../../../original/Fundamento%20teorico.docx.pdf).
+
+**Pasos:** Kud presenta palabras una por una, cada una desaparece → se presentan mezcladas → estudiante selecciona en orden y ve secuencia construida → envía. Una palabra seleccionada queda fijada durante intento; longitud puede crecer progresivamente. Palabras familiares/comparables en longitud, evitar similitud fonológica extrema/asociaciones. **Registrar:** secuencia/longitud, palabras presentadas/elegidas, orden, corrección, errores de orden, omisiones, intrusiones/sustituciones, repeticiones, tiempo, dificultad, intento y dispositivo. **Indicadores:** secuencia correcta según criterio por definir, precisión por longitud, mayor longitud exacta alcanzada, errores de orden, patrones de omisión/intrusión/repetición y tiempo. No llamar «span estandarizado» al máximo.
+
+**Aceptación/pruebas:** reproducción exacta se distingue de mismas palabras en orden diferente; selección fijada no se reordena; omisión/intrusión/repetición distinguibles; sin ensayos suficientes no asignar cero. Probar longitud corta/larga, permutación, elemento extra y fallo técnico. Método formal de tasas por aprobar; [modelo](../domain-model.md), [indicadores](../../evolucion/domain-model.md).

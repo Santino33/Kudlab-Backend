@@ -1,0 +1,7 @@
+# TG-02: Palabra intrusa (~2 min)
+
+**Objetivo:** selección atencional contextualizada en categorización semántica de lectura, no evaluación independiente de vocabulario. [F ficha TG-02 pp. 28–30, §5.6 p. 46](../../../../original/Fundamento%20teorico.docx.pdf). Actor: estudiante en batería habilitada.
+
+**Pasos:** mostrar 4 palabras (3 de categoría común, 1 intrusa) → alumno compara → selecciona intrusa → registrar elección definitiva y tiempo → siguiente ítem. Respuesta elegida **no se modifica**; durante medición sin feedback inmediato de corrección. Material: palabras familiares de tercero, evitar regionalismos/ambigüedad; dificultad por similitud semántica, no desconocimiento deliberado. **Datos:** ítem, categoría, intrusa, respuesta, corrección, TR, dificultad, intento y dispositivo. **Indicadores:** precisión=correctas/ítems válidos ×100; error=incorrectas/ítems válidos ×100; TR y variabilidad, resultados por dificultad. [F §5.6](../../../../original/Fundamento%20teorico.docx.pdf).
+
+**Verificar:** seleccionar intrusa acierta; respuesta equivocada queda registrada sin feedback correctivo; segundo cambio rechazado; ítem ambiguo/técnicamente inválido se excluye según ficha por aprobar, sin falso cero. Pruebas con distintas dificultades, vocabulario apropiado e incidencia. Un error no demuestra déficit de atención ni nivel lector general; [validación](../../evolucion/features/suficiencia.md), [dominio](../domain-model.md).

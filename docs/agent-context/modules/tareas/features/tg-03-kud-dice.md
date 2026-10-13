@@ -1,0 +1,7 @@
+# TG-03: Kud dice (~2 min)
+
+**Objetivo:** registrar mantenimiento/manipulación de información bajo instrucciones matemáticas, no aislar causas de error. [F ficha TG-03 pp. 30–33, §5.7 pp. 46–47](../../../../original/Fundamento%20teorico.docx.pdf).
+
+**Pasos:** Kud presenta valor inicial y operaciones sucesivas una por una; cada instrucción desaparece antes de la siguiente → estudiante mantiene resultado intermedio y opera → ingresa resultado final por teclado/campo numérico → envía respuesta definitiva (no editable). Ejemplo ilustrativo F: 5 + 3 − 2; no es banco de ítems. La carga varía principalmente por número de pasos; rangos y selección de operaciones definitivos no se especifican. **Registrar:** ítem, valor inicial, cantidad/secuencia de operaciones, solución esperada, respuesta final, corrección, TR, carga, intento y dispositivo. **Indicadores:** precisión=correctas/ítems válidos ×100; precisión por carga; diferencia entre cargas (mayor − menor), tiempo y variabilidad si datos válidos. [F §5.7](../../../../original/Fundamento%20teorico.docx.pdf).
+
+**Verificación:** secuencia no expone simultáneamente instrucciones previas; respuesta irrevocable; variación de pasos queda asociada al resultado; errores no se etiquetan automáticamente «de memoria» ni «de cálculo»; fallo de captura/denominador → no disponible. Pruebas: resultado correcto/incorrecto, respuesta repetida, 1 vs varios pasos, incidencia. Dependencias [práctica](tg-00-practica.md), [cálculo](../../evolucion/features/calculo.md).

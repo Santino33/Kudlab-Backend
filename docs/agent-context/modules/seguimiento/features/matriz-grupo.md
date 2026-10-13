@@ -1,0 +1,5 @@
+# RF-024 (V3, propuesta): matriz de observaciones del grupo
+
+**Actor:** docente con grupo asignado; objetivo: registrar secuencialmente observaciones de varios alumnos sin reconfigurar sesión por estudiante, aplicando mismos campos/escala de RF-023. [V3 RF-024](../../../../original/requisitos_V3.xlsx), [A §2.2.2 pp. 9–10](../../../../original/3%20ANALISIS%20DEL%20PROYECTO.docx.pdf).
+
+**Flujo:** consultar grupo autorizado → mostrar matriz de alumnos/observaciones → completar entradas con escala/fecha/autor/periodo según [observaciones](observaciones.md) → validar cada fila → guardar válidas, señalar incompletas sin tratarlas como completas. Alumno fuera de grupo → denegar; fallo al guardar → no declarar éxito sobre fila afectada. **Verificación:** registrar varios miembros sin cambiar sesión; fila inválida claramente distinguida y no persiste como completa; docente de otro grupo no registra; repetir carga para detectar duplicados (política por definir). Pruebas: mezcla de filas válidas/inválidas, grupo ajeno y fallo de guardado. V3 no especifica importación de archivo ni atomicidad total; no inferir. Modelo [observaciones](../domain-model.md).

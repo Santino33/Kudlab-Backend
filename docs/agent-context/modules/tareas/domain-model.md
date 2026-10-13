@@ -1,0 +1,10 @@
+# Modelo de tarea y datos de ejecución
+
+| Tabla ERD | Atributos explícitos | Relaciones / observaciones |
+| --- | --- | --- |
+| `tasks` | `id VARCHAR(20) PK` TG-00…06; `title VARCHAR(100)`, `paradigm_type VARCHAR(100)`, `is_evaluative BOOLEAN`, `config_version INT`, `kud_assets_r2_prefix VARCHAR(255)` | 1:N asignaciones; versión actual no garantiza versiones históricas. |
+| `task_assignments` | `id UUID PK`, `task_id VARCHAR(20) FK`, `group_id UUID FK`, `teacher_id UUID FK`, `start_date/end_date TIMESTAMP`, `max_attempts INT DEFAULT 2` | docente/grupo/tarea 1:N asignaciones; V3 RF-015 propone también individuo, ausente en ERD. |
+| `task_sessions` | `id UUID PK`, `assignment_id/student_id UUID FK`, `attempt_number INT`, `status VARCHAR(30)`, `started_at/finished_at TIMESTAMP` | asignación/estudiante 1:N sesiones; valores de status **no enumerados completamente**. |
+| `raw_events` | `id BIGINT PK AUTOINCREMENT`, `session_id UUID FK`, `trial_number INT`, `event_type/stimulus_type VARCHAR(50)`, `reaction_time_ms INT`, `is_correct BOOLEAN`, `timestamp_client TIMESTAMP(3)` | sesión 1:N eventos; TG-02…05 necesitan respuestas, secuencias, condiciones y dispositivos adicionales no representados en este ERD. |
+
+F §3.7 pp. 20–21 especifica jerarquía conceptual **estudiante → sesión → bloque → tarea → ensayo → respuesta → indicador**, no necesariamente tablas. F §§5.3–5.4 pp. 42–44: tiempo válido = respuesta registrada − presentación efectiva; omisión solo si estímulo y ventana válidos sin incidencia técnica; no número mínimo universal de ensayos. Estado de sesión completada/interrumpida/abandonada/afectada por incidencia (F §6.12 p. 58); diagrama PNG añade Asignada, Autenticando, InstruccionesPresentadas, EnEjecución, LímiteAlcanzado, Finalizada y Consolidada; no es enum persistido. [DBML líneas 100–138, 163–168](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/03-modelo-datos/01-modelo-logico/esquema.dbml), [estado PNG](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/04-estados/01-estado-seccion-tarea/01-estado-sesion-tarea.png).
