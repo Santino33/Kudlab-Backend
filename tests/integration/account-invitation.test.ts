@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
 import { db } from '../../src/db/client.js';
 import { invitations } from '../../src/db/schema/accounts.js';
-import { eq } from 'drizzle-orm';
+import { eq, sql } from 'drizzle-orm';
 import { userAccounts } from '../../src/db/schema/accounts.js';
 import { SMTPServer } from 'smtp-server';
 import type { AddressInfo } from 'node:net';
@@ -84,5 +84,21 @@ describe('US1: unicidad y vigencia', () => {
     expect((await request(`/api/v1/accounts/${created.id}/deactivate`, 'POST', { confirm: true }, headers)).status).toBe(200);
     expect((await request('/api/v1/accounts', 'POST', { name: 'Otro', email: 'taken@pilot.edu.co', role: 'TEACHER' }, headers)).status).toBe(409);
     expect((await db.select().from(userAccounts).where(eq(userAccounts.emailNormalized, 'taken@pilot.edu.co')))).toHaveLength(1);
+  });
+  it('si SMTP aceptó el mensaje pero falla guardar ENVIADA, no informa falsamente ERROR', async () => {
+    const headers = await login();
+    try {
+      await db.execute(sql`create function fail_sent_status_test() returns trigger as $$ begin if new.delivery_status = 'ENVIADA' then raise exception 'storage unavailable'; end if; return new; end $$ language plpgsql`);
+      await db.execute(sql`create trigger fail_sent_status before update on account_invitations for each row execute function fail_sent_status_test()`);
+      expect((await request('/api/v1/accounts', 'POST', { name: 'Docente', email: 'persist@pilot.edu.co', role: 'TEACHER' }, headers)).status).toBe(503);
+      expect(capturedMail.at(-1)?.to).toBe('persist@pilot.edu.co');
+      const [invitation] = await db.select().from(invitations).where(eq(invitations.emailNormalized, 'persist@pilot.edu.co'));
+      expect(invitation?.deliveryStatus).toBe('PENDIENTE');
+      const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+      expect((await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' })).status).toBe(200);
+    } finally {
+      await db.execute(sql`drop trigger if exists fail_sent_status on account_invitations`);
+      await db.execute(sql`drop function if exists fail_sent_status_test()`);
+    }
   });
 });

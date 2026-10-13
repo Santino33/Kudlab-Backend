@@ -5,6 +5,7 @@ import { db } from '../db/client.js';
 import { userAccounts } from '../db/schema/accounts.js';
 import { user } from '../db/schema/auth.js';
 import type { InferSelectModel } from 'drizzle-orm';
+import { hasActiveIdentity } from '../modules/usuarios/accounts.types.js';
 
 export type CurrentAccount = InferSelectModel<typeof userAccounts>;
 export type AuthVariables = { Variables: { currentAccount: CurrentAccount; authUserId: string } };
@@ -15,7 +16,7 @@ export async function requireActive(c: Context<AuthVariables>, next: Next) {
   if (!session?.user || !session.session) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
   const [account] = await db.select().from(userAccounts).where(eq(userAccounts.authUserId, session.user.id)).limit(1);
   const [identity] = await db.select({ role: user.role, banned: user.banned }).from(user).where(eq(user.id, session.user.id));
-  if (!account || account.status !== 'ACTIVA' || !identity || identity.banned || identity.role !== account.role.toLowerCase())
+  if (!hasActiveIdentity(account, identity))
     return c.json({ code: 'FORBIDDEN', message: 'Acceso denegado' }, 403);
   c.set('currentAccount', account);
   c.set('authUserId', session.user.id);

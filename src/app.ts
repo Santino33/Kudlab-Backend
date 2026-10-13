@@ -8,6 +8,7 @@ import { accountsRoutes } from './modules/usuarios/accounts.routes.js';
 import { invitationsRoutes } from './modules/usuarios/invitations.routes.js';
 import { promotionRoutes } from './modules/usuarios/promotion-requests.routes.js';
 import { emailChangeRoutes } from './modules/usuarios/email-changes.routes.js';
+import { fail } from './modules/usuarios/accounts.errors.js';
 
 export const app = new Hono<AuthVariables>();
 const env = loadEnv();
@@ -30,3 +31,4 @@ app.use('/api/v1/admin-role-requests', requireActive);
 app.use('/api/v1/admin-role-requests/*', requireActive);
 app.route('/api/v1/admin-role-requests', promotionRoutes);
 app.route('/api/v1/account-email-changes', emailChangeRoutes);
+app.onError((error, c) => fail(c, error));

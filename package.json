@@ -25,6 +25,8 @@
     "nodemailer": "10.1.0"
   },
   "devDependencies": {
+    "ajv": "8.20.0",
+    "ajv-formats": "3.0.1",
     "auth": "1.7.7",
     "@types/node": "24.10.0",
     "@types/pg": "8.15.6",

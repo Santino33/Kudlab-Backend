@@ -10,6 +10,7 @@ import { AccountError } from './accounts.errors.js';
 import { passwordSchema } from './accounts.validation.js';
 import { recordAudit } from './audit.service.js';
 import { makeMailer } from './invitations.mailer.js';
+import { lockAccount } from './account-lock.js';
 
 export const digestToken = (token: string) => createHash('sha256').update(token).digest('hex');
 
@@ -26,10 +27,19 @@ export async function deliverInvitation(id: string, email: string, token: string
   url.searchParams.set('token', token);
   try {
     await makeMailer()(email, url.toString());
+  } catch {
+    try {
+      await db.update(invitations).set({ deliveryStatus: 'ERROR' }).where(eq(invitations.id, id));
+    } catch {
+      throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'No se pudo registrar el resultado de entrega');
+    }
+    throw new AccountError(503, 'DELIVERY_FAILED', 'Invitación pendiente de entrega');
+  }
+  try {
     await db.update(invitations).set({ deliveryStatus: 'ENVIADA' }).where(eq(invitations.id, id));
   } catch {
-    await db.update(invitations).set({ deliveryStatus: 'ERROR' }).where(eq(invitations.id, id));
-    throw new AccountError(503, 'DELIVERY_FAILED', 'Invitación pendiente de entrega');
+    // SMTP accepted the message. Preserve PENDIENTE instead of claiming delivery failed.
+    throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'El correo pudo entregarse; verifique el estado');
   }
 }
 
@@ -37,12 +47,14 @@ export async function acceptInvitation(token: string, password: string) {
   passwordSchema.parse(password);
   const digest = digestToken(token);
   return db.transaction(async (tx) => {
+    const [candidate] = await tx.select({ accountId: invitations.accountId }).from(invitations).where(eq(invitations.tokenDigest, digest));
+    if (!candidate) throw new AccountError(410, 'INVITATION_EXPIRED', 'Invitación inválida o vencida');
+    const account = await lockAccount(tx, candidate.accountId);
     const rows = await tx.execute(sql`select * from account_invitations where token_digest = ${digest} for update`);
     const invitation = rows.rows[0] as { id: string; account_id: string; email_normalized: string; token_digest: string; expires_at: Date; consumed_at: Date | null; invalidated_at: Date | null } | undefined;
     if (!invitation || !timingSafeEqual(Buffer.from(invitation.token_digest), Buffer.from(digest)) || invitation.consumed_at || invitation.invalidated_at || new Date(invitation.expires_at).getTime() <= Date.now())
       throw new AccountError(410, 'INVITATION_EXPIRED', 'Invitación inválida o vencida');
-    const [account] = await tx.select().from(userAccounts).where(eq(userAccounts.id, invitation.account_id));
-    if (!account || account.status !== 'PENDIENTE' || account.emailNormalized !== invitation.email_normalized || account.role !== 'TEACHER')
+    if (account.status !== 'PENDIENTE' || account.emailNormalized !== invitation.email_normalized || account.role !== 'TEACHER')
       throw new AccountError(409, 'ACCOUNT_CONFLICT', 'La cuenta no puede activarse');
     let [identity] = await db.select().from(user).where(eq(user.email, account.emailNormalized));
     if (!identity) {

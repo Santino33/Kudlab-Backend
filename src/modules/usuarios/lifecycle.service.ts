@@ -5,12 +5,14 @@ import { session, user } from '../../db/schema/auth.js';
 import { AccountError } from './accounts.errors.js';
 import { recordAudit } from './audit.service.js';
 import { present } from './accounts.service.js';
+import type { LifecycleAction } from './accounts.types.js';
 
-export async function changeAccountStatus(id: string, actor: string, reactivate: boolean) {
+export async function changeAccountStatus(id: string, actor: string, action: LifecycleAction) {
   return db.transaction(async (tx) => {
     await tx.execute(sql`select pg_advisory_xact_lock(713611032)`);
     const [target] = await tx.select().from(userAccounts).where(eq(userAccounts.id, id));
     if (!target) throw new AccountError(404, 'NOT_FOUND', 'Cuenta no encontrada');
+    const reactivate = action === 'reactivate';
     const previous = reactivate ? 'INACTIVA' : 'ACTIVA';
     const next = reactivate ? 'ACTIVA' : 'INACTIVA';
     if (target.status !== previous || !target.authUserId || !['ADMIN', 'TEACHER'].includes(target.role))

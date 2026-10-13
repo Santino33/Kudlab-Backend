@@ -127,3 +127,33 @@ impedir crear un administrador con valores inseguros.
 - SC-005 requiere prueba guiada con administradores humanos y SPA, por lo que
   sigue **sin verificar**. Las decisiones V3 tampoco se atribuyen como
   aprobación institucional.
+
+## Validación presencial pendiente (SC-005)
+
+La prueba de usabilidad **no se ha realizado**. Con la SPA conectada al backend
+de pruebas, pedir a administradores del piloto que creen una cuenta válida y
+que identifiquen un error de correo duplicado, sin asistencia. Medir cada
+intento; documentar el número de participantes, los tiempos y si hubo ayuda
+en [checklists/requirements.md](checklists/requirements.md), sin registrar
+datos personales ni contraseñas reales. Solo entonces evaluar el umbral de
+SC-005 (≥90 % de éxito sin ayuda en ≤3 minutos por intento) y cerrar T049.
+
+## Verificación de convergencia T050–T058 (PostgreSQL 17 local)
+
+- `npm ci`, `npm run db:migrate`, `npm run typecheck` y `npm test` ejecutados
+  sobre una base nueva `kudlab_refactor_verify`: **44 pruebas aprobadas en
+  13 archivos**. `npm run db:generate` no encontró cambios pendientes.
+- Las migraciones `0003_account-email-claims`, `0004_email_change_actor` y
+  `0005_invitation_latest_index` añaden protección de reservas concurrentes,
+  autoría de solicitud de correo e índice para la última invitación.
+- Se probaron carreras entre alta y reserva, activación y edición, edición e
+  inactivación; rollback por falla de auditoría; paginación estable y número
+  acotado de consultas con 100 cuentas; respuestas JSON contrastadas con el
+  contrato OpenAPI; y fallo al persistir ENVIADA tras aceptar SMTP.
+- El evento `REQUEST_EMAIL_CHANGE` registra al ADMIN solicitante y `UPDATE`
+  conserva ese actor al confirmarse el cambio. `CONFIRM_EMAIL_CHANGE` usa el
+  actor `system:email-verification`: el token demuestra posesión del correo,
+  **no identifica de forma autenticada a quien hizo la petición HTTP**.
+- La medición con 100 cuentas sigue siendo local y no convierte la referencia
+  de rendimiento en un criterio aprobado. La prueba humana SC-005 permanece
+  **no realizada**; T049 sigue pendiente.

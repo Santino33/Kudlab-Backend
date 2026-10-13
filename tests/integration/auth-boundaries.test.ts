@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it } from 'vitest';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
-import { user } from '../../src/db/schema/auth.js';
+import { user, account as authCredentials } from '../../src/db/schema/auth.js';
 import { bootstrapAdmin } from '../../src/scripts/bootstrap-admin.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
 import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
@@ -42,5 +42,21 @@ describe('fronteras de autenticación', () => {
     try { await expect(bootstrapAdmin()).rejects.toThrow(); }
     finally { process.env.BOOTSTRAP_ADMIN_PASSWORD = original; }
     expect(await db.select().from(userAccounts)).toHaveLength(0);
+  });
+  it('el bootstrap revierte identidad y hash Better Auth si falla la auditoría', async () => {
+    await db.execute(sql`truncate account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" cascade`);
+    try {
+      await db.execute(sql`create function reject_bootstrap_audit() returns trigger as $$ begin raise exception 'simulated audit failure'; end; $$ language plpgsql`);
+      await db.execute(sql`create trigger fail_bootstrap_audit before insert on account_audit_events for each row execute function reject_bootstrap_audit()`);
+      await expect(bootstrapAdmin()).rejects.toThrow();
+      expect(await db.select().from(user)).toHaveLength(0);
+      expect(await db.select().from(authCredentials)).toHaveLength(0);
+      expect(await db.select().from(userAccounts)).toHaveLength(0);
+    } finally {
+      await db.execute(sql`drop trigger if exists fail_bootstrap_audit on account_audit_events`);
+      await db.execute(sql`drop function if exists reject_bootstrap_audit()`);
+    }
+    await bootstrapAdmin();
+    await login();
   });
 });

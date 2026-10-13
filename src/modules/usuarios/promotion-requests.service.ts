@@ -4,6 +4,7 @@ import { adminRoleRequests, userAccounts } from '../../db/schema/accounts.js';
 import { user } from '../../db/schema/auth.js';
 import { AccountError } from './accounts.errors.js';
 import { recordAudit } from './audit.service.js';
+import { authRoleFor, type PromotionDecision } from './accounts.types.js';
 
 export function presentRequest(row: typeof adminRoleRequests.$inferSelect) {
   return { id: row.id, requesterAccountId: row.requesterAccountId, status: row.status,
@@ -25,9 +26,10 @@ export async function listRequests(actor: typeof userAccounts.$inferSelect) {
     .orderBy(desc(adminRoleRequests.requestedAt));
   return rows.map(presentRequest);
 }
-export async function decideRequest(id: string, actor: typeof userAccounts.$inferSelect, approve: boolean) {
+export async function decideRequest(id: string, actor: typeof userAccounts.$inferSelect, decision: PromotionDecision) {
   if (actor.role !== 'ADMIN') throw new AccountError(403, 'FORBIDDEN', 'Acceso denegado');
   return db.transaction(async (tx) => {
+    const approve = decision === 'approve';
     const locked = await tx.execute(sql`select * from admin_role_requests where id = ${id} for update`);
     const existing = locked.rows[0] as { id: string; requester_account_id: string; status: string } | undefined;
     if (!existing) throw new AccountError(404, 'NOT_FOUND', 'Solicitud no encontrada');
@@ -37,7 +39,7 @@ export async function decideRequest(id: string, actor: typeof userAccounts.$infe
     if (!requester || requester.role !== 'TEACHER' || requester.status !== 'ACTIVA' || !requester.authUserId)
       throw new AccountError(409, 'CONFLICT', 'Solicitante sin elegibilidad vigente');
     if (approve) {
-      const updatedIdentity = await tx.update(user).set({ role: 'admin' }).where(and(eq(user.id, requester.authUserId), eq(user.role, 'teacher'))).returning({ id: user.id });
+      const updatedIdentity = await tx.update(user).set({ role: authRoleFor('ADMIN') }).where(and(eq(user.id, requester.authUserId), eq(user.role, authRoleFor('TEACHER')))).returning({ id: user.id });
       if (updatedIdentity.length !== 1) throw new AccountError(409, 'CONFLICT', 'Identidad desincronizada');
       await tx.update(userAccounts).set({ role: 'ADMIN', updatedAt: new Date() }).where(eq(userAccounts.id, requester.id));
       await recordAudit(tx, requester.id, actor.authUserId!, 'ROLE_CHANGE', { role: 'TEACHER' }, { role: 'ADMIN' });

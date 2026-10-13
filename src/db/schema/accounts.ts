@@ -24,7 +24,8 @@ export const invitations = pgTable('account_invitations', {
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(),
   consumedAt: timestamp('consumed_at', { withTimezone: true }), invalidatedAt: timestamp('invalidated_at', { withTimezone: true }),
   deliveryStatus: text('delivery_status').notNull().default('PENDIENTE'),
-}, (t) => [check('invitation_delivery_check', sql`${t.deliveryStatus} in ('PENDIENTE','ENVIADA','ERROR')`),
+}, (t) => [index('invitation_latest_account_idx').on(t.accountId, t.createdAt.desc(), t.id.desc()),
+  check('invitation_delivery_check', sql`${t.deliveryStatus} in ('PENDIENTE','ENVIADA','ERROR')`),
   check('invitation_ttl_check', sql`${t.expiresAt} = ${t.createdAt} + interval '7 days'`)]);
 
 export const adminRoleRequests = pgTable('admin_role_requests', {
@@ -38,6 +39,7 @@ export const adminRoleRequests = pgTable('admin_role_requests', {
 
 export const emailChanges = pgTable('account_email_changes', {
   id: uuid('id').primaryKey().defaultRandom(), accountId: uuid('account_id').notNull().references(() => userAccounts.id),
+  requestedByAuthUserId: text('requested_by_auth_user_id').references(() => user.id),
   newEmailNormalized: text('new_email_normalized').notNull(), tokenDigest: text('token_digest').notNull().unique(),
   expiresAt: timestamp('expires_at', { withTimezone: true }).notNull(), consumedAt: timestamp('consumed_at', { withTimezone: true }),
   invalidatedAt: timestamp('invalidated_at', { withTimezone: true }), createdAt: timestamp('created_at', { withTimezone: true }).notNull().defaultNow(),

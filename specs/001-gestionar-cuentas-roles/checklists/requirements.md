@@ -60,3 +60,19 @@
 La medición local de 30 sesiones figura en `quickstart.md` como referencia
 de diseño, no como aceptación institucional. T049 permanece abierta hasta
 completar SC-005 y el recorrido guiado correspondiente.
+
+### Prueba guiada pendiente: SC-005
+
+**Estado: NO REALIZADA.** Las 31 pruebas automatizadas validan el backend,
+pero no miden si los administradores del piloto pueden utilizar la interfaz
+sin ayuda. No se dispone aquí de resultados de participantes ni de una prueba
+guiada con la SPA; por tanto, no hay porcentaje de éxito ni tiempos observados
+que permitan afirmar el cumplimiento de SC-005.
+
+Para cerrar esta verificación, realizar con administradores del piloto el
+recorrido de crear una cuenta válida y reconocer un error de correo duplicado.
+Registrar fecha, cantidad de participantes, resultado individual de cada
+intento, tiempo empleado y si requirió ayuda, sin incorporar correos ni
+credenciales reales al repositorio. Comparar los resultados con el umbral de
+SC-005: **al menos 90 % sin ayuda y en un máximo de 3 minutos por intento**.
+Hasta disponer de esa evidencia, T049 permanece sin marcar.

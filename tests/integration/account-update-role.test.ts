@@ -90,4 +90,9 @@ describe('US2 seguridad y correo', () => {
     expect((await request('/api/v1/account-email-changes/confirm', 'POST', { token })).status).toBe(410);
     expect((await (await request(`/api/v1/accounts/${account.id}`, 'GET', undefined, admin)).json()).email).toBe('teacher@pilot.edu.co');
   });
+  it('reserva un correo pendiente frente a nuevas altas', async () => {
+    const { account, admin } = await inviteTeacher();
+    expect((await request(`/api/v1/accounts/${account.id}`, 'PATCH', { email: 'reserved@pilot.edu.co' }, admin)).status).toBe(200);
+    expect((await request('/api/v1/accounts', 'POST', { name: 'Otra', email: 'reserved@pilot.edu.co', role: 'TEACHER' }, admin)).status).toBe(409);
+  });
 });

@@ -1,11 +1,15 @@
 import { eq, asc } from 'drizzle-orm';
 import { db } from '../../db/client.js';
 import { auditEvents } from '../../db/schema/accounts.js';
+import type { AccountRole, AccountStatus } from './accounts.types.js';
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
-type Snapshot = { name?: string; email?: string; role?: string; status?: string };
+type Snapshot = { name?: string; email?: string; role?: AccountRole; status?: AccountStatus };
+type AuditAction = 'BOOTSTRAP_ADMIN' | 'INVITE' | 'ACTIVATE' | 'UPDATE' | 'REQUEST_ADMIN'
+  | 'APPROVE_ADMIN' | 'REJECT_ADMIN' | 'ROLE_CHANGE' | 'DEACTIVATE' | 'REACTIVATE'
+  | 'REQUEST_EMAIL_CHANGE' | 'CONFIRM_EMAIL_CHANGE';
 
-export async function recordAudit(tx: Transaction, targetAccountId: string, actorAuthUserId: string, action: string, before?: Snapshot, after?: Snapshot) {
+export async function recordAudit(tx: Transaction, targetAccountId: string, actorAuthUserId: string, action: AuditAction, before?: Snapshot, after?: Snapshot) {
   await tx.insert(auditEvents).values({ targetAccountId, actorAuthUserId, action, before: before ?? null, after: after ?? null });
 }
 

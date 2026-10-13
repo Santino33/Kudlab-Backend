@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
+import { app } from '../../src/app.js';
 
 describe('US1: contrato HTTP de invitaciones', () => {
   beforeEach(reset);
@@ -43,5 +44,11 @@ describe('US1: contrato HTTP de invitaciones', () => {
       delete process.env.MAIL_HOST; delete process.env.MAIL_PORT; delete process.env.MAIL_USER;
       delete process.env.MAIL_PASSWORD; delete process.env.MAIL_FROM;
     }
+  });
+  it('traduce JSON malformado a 400 sin exponer detalles internos', async () => {
+    const response = await app.request('/api/v1/accounts', { method: 'POST',
+      headers: { origin: 'http://localhost:5173', 'content-type': 'application/json', ...(await login()) }, body: '{' });
+    expect(response.status).toBe(400);
+    expect(await response.json()).toMatchObject({ code: 'INVALID_INPUT' });
   });
 });
