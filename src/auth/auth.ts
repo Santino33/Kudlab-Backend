@@ -4,13 +4,11 @@ import { drizzleAdapter } from '@better-auth/drizzle-adapter';
 import { admin, bearer, jwt } from 'better-auth/plugins';
 import { createAccessControl } from 'better-auth/plugins/access';
 import { defaultStatements, adminAc } from 'better-auth/plugins/admin/access';
-import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import * as schema from '../db/schema/auth.js';
-import { userAccounts } from '../db/schema/accounts.js';
 import { loadEnv } from '../config/env.js';
 import { hashCredentialPassword } from './credential-identity.js';
-import { hasActiveIdentity } from '../modules/usuarios/accounts.types.js';
+import { resolveActiveIdentity } from './active-identity.js';
 
 const env = loadEnv();
 const ac = createAccessControl(defaultStatements);
@@ -34,9 +32,7 @@ export const auth = betterAuth({
   // This closes the direct sign-in path for pending/inactive users (also ban them at the plugin).
   databaseHooks: {
     session: { create: { before: async (candidate) => {
-      const [account] = await db.select().from(userAccounts).where(eq(userAccounts.authUserId, candidate.userId)).limit(1);
-      const [identity] = await db.select({ role: schema.user.role, banned: schema.user.banned }).from(schema.user).where(eq(schema.user.id, candidate.userId));
-      if (!hasActiveIdentity(account, identity)) return false;
+      if (!await resolveActiveIdentity(candidate.userId)) return false;
       return { data: candidate };
     } } },
   },

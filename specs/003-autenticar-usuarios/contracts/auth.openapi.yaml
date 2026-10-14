@@ -1,0 +1,217 @@
+openapi: 3.1.0
+info:
+  title: Kudlab - Autenticación del personal
+  version: 0.1.0
+  description: >-
+    Contrato planificado para RF-003 V3 (propuesta pendiente de validación).
+    Las rutas Better Auth ya están montadas con lista blanca en src/app.ts;
+    los comportamientos de filtrado, actividad y recuperación de este documento
+    son objetivo de implementación, no están garantizados por el código actual.
+servers:
+  - url: /
+tags:
+  - name: Acceso
+  - name: Recuperacion
+paths:
+  /api/auth/sign-in/email:
+    post:
+      tags: [Acceso]
+      summary: Iniciar sesión con correo y contraseña
+      security: []
+      description: >-
+        Solo cuenta ACTIVA y rol vigente coherente con la identidad. Las cuentas
+        inexistentes, pendientes, inactivas y las contraseñas erróneas dan la
+        misma respuesta pública. La sesión empieza a contar inactividad al crearse.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              additionalProperties: false
+              properties:
+                email: { type: string, format: email }
+                password: { type: string, minLength: 1 }
+      responses:
+        '200':
+          description: >-
+            Sesión persistida. Cookie HttpOnly y/o token opaco en set-auth-token;
+            no devolver contraseña ni token JWT como credencial de sesión.
+          headers:
+            set-auth-token:
+              description: Token opaco de sesión para clientes Bearer que no usan cookie.
+              schema: { type: string }
+            Set-Cookie:
+              description: Cookie de sesión cuando el cliente usa cookies.
+              schema: { type: string }
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [user]
+                properties:
+                  user: { $ref: '#/components/schemas/Identity' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '401': { $ref: '#/components/responses/InvalidCredentials' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/auth/get-session:
+    get:
+      tags: [Acceso]
+      summary: Consultar la propia sesión sin renovar la actividad protegida
+      description: >-
+        Revalida cuenta y sesión; una cuenta inactiva o sesión vencida no
+        produce identidad aprovechable. No cuenta como actividad para los 30 minutos.
+      responses:
+        '200':
+          description: Estado válido de la sesión, sin datos de terceros.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/SessionView' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/auth/sign-out:
+    post:
+      tags: [Acceso]
+      summary: Cerrar solo la sesión presentada
+      responses:
+        '200':
+          description: Sesión actual invalidada; la cookie/credencial local debe descartarse.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean, const: true }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/auth/password-recovery/request:
+    post:
+      tags: [Recuperacion]
+      summary: Solicitar enlace de recuperación por correo vigente
+      security: []
+      description: >-
+        Siempre confirma neutralmente para correo no registrado, pendiente,
+        inactivo o activo. Solo cuenta ACTIVA recibe enlace de 30 minutos;
+        correo pendiente de cambio no se acepta.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email]
+              additionalProperties: false
+              properties:
+                email: { type: string, format: email }
+      responses:
+        '202':
+          description: Respuesta idéntica con independencia de la existencia/estado de cuenta.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [message]
+                properties:
+                  message: { type: string, const: 'Si corresponde, recibirás instrucciones en tu correo.' }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/auth/password-recovery/confirm:
+    post:
+      tags: [Recuperacion]
+      summary: Canjear verificación y sustituir contraseña
+      security: []
+      description: >-
+        Un solo canje exitoso: comprueba estado ACTIVA, correo vigente,
+        vencimiento y política; invalida todas las sesiones previas y obliga
+        a iniciar sesión de nuevo. Nunca inicia sesión automáticamente.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [token, newPassword]
+              additionalProperties: false
+              properties:
+                token: { type: string, minLength: 1 }
+                newPassword: { type: string, minLength: 8, maxLength: 128 }
+      responses:
+        '200':
+          description: Contraseña actualizada y todas las sesiones anteriores revocadas.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [success]
+                properties:
+                  success: { type: boolean, const: true }
+        '400': { $ref: '#/components/responses/BadRequest' }
+        '410': { $ref: '#/components/responses/InvalidVerification' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+    sessionBearer:
+      type: http
+      scheme: bearer
+      description: Token opaco de sesión de Better Auth, no JWT.
+  schemas:
+    Identity:
+      type: object
+      required: [id, email, name, role]
+      properties:
+        id: { type: string }
+        email: { type: string, format: email }
+        name: { type: string }
+        role: { type: string, enum: [ADMIN, TEACHER], description: Rol vigente de la cuenta, no autoridad para autorizar desde el cliente. }
+    SessionView:
+      type: object
+      required: [user, session]
+      properties:
+        user: { $ref: '#/components/schemas/Identity' }
+        session:
+          type: object
+          required: [id, expiresAt]
+          properties:
+            id: { type: string }
+            expiresAt: { type: string, format: date-time }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+  responses:
+    BadRequest:
+      description: Formato inválido; la contraseña anterior y verificación siguen intactas.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InvalidCredentials:
+      description: Mensaje uniforme para todos los intentos de ingreso inválidos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unauthenticated:
+      description: Sesión ausente, vencida o revocada; no se devuelven datos protegidos.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    InvalidVerification:
+      description: Token vencido, usado o no canjeable; sin confirmar estado de cuenta.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+    Unavailable:
+      description: No fue posible verificar o confirmar la operación; se deniega acceso.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/Error' }
+security:
+  - sessionCookie: []
+  - sessionBearer: []

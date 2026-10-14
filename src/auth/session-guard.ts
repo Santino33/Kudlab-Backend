@@ -1,12 +1,10 @@
 import type { Context, Next } from 'hono';
-import { eq } from 'drizzle-orm';
 import { auth } from './auth.js';
-import { db } from '../db/client.js';
 import { userAccounts } from '../db/schema/accounts.js';
-import { user } from '../db/schema/auth.js';
 import type { InferSelectModel } from 'drizzle-orm';
-import { hasActiveIdentity } from '../modules/usuarios/accounts.types.js';
 import { authorizeScope, type AssignmentProvider, type ScopeDecision, type ScopeRequest } from '../modules/usuarios/scope-authorization.js';
+import { resolveActiveIdentity } from './active-identity.js';
+import { checkSessionActivity, recordAcceptedRequest } from './session-activity.js';
 
 export type CurrentAccount = InferSelectModel<typeof userAccounts>;
 export type AuthVariables = { Variables: { currentAccount: CurrentAccount; authUserId: string } };
@@ -15,13 +13,17 @@ export async function requireActive(c: Context<AuthVariables>, next: Next) {
   // getSession validates an opaque, persisted session; a signed JWT alone cannot pass.
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user || !session.session) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
-  const [account] = await db.select().from(userAccounts).where(eq(userAccounts.authUserId, session.user.id)).limit(1);
-  const [identity] = await db.select({ role: user.role, banned: user.banned }).from(user).where(eq(user.id, session.user.id));
-  if (!hasActiveIdentity(account, identity))
+  const active = await resolveActiveIdentity(session.user.id);
+  if (!active)
     return c.json({ code: 'FORBIDDEN', message: 'Acceso denegado' }, 403);
-  c.set('currentAccount', account);
+  if (!await checkSessionActivity(session.session.id, session.user.id))
+    return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
+  c.set('currentAccount', active.account);
   c.set('authUserId', session.user.id);
   await next();
+  if (c.res.status >= 200 && c.res.status < 300 &&
+    !await recordAcceptedRequest(session.session.id, session.user.id))
+    return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
 }
 
 export async function requireAdmin(c: Context<AuthVariables>, next: Next) {
@@ -37,13 +39,10 @@ export async function authorizeProtectedScope(
   const authenticated = c.get('currentAccount');
   if (!authenticated || !provider) return { allowed: false };
   try {
-    const [account] = await db.select().from(userAccounts).where(eq(userAccounts.id, authenticated.id)).limit(1);
-    const [identity] = account?.authUserId
-      ? await db.select({ role: user.role, banned: user.banned }).from(user).where(eq(user.id, account.authUserId))
-      : [];
-    if (!account || account.authUserId !== c.get('authUserId') || !hasActiveIdentity(account, identity))
+    const active = await resolveActiveIdentity(c.get('authUserId'));
+    if (!active || active.account.id !== authenticated.id)
       return { allowed: false };
-    return authorizeScope(account, request, provider);
+    return authorizeScope(active.account, request, provider);
   } catch {
     return { allowed: false };
   }

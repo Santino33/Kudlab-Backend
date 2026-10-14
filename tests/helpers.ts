@@ -5,7 +5,7 @@ import { bootstrapAdmin } from '../src/scripts/bootstrap-admin.js';
 import { capturedMail } from '../src/modules/usuarios/invitations.mailer.js';
 
 export async function reset() {
-  await db.execute(sql`truncate account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
+  await db.execute(sql`truncate password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
   capturedMail.length = 0;
   await bootstrapAdmin();
 }
@@ -18,6 +18,13 @@ export async function login(email = 'admin@pilot.edu.co', password = 'TestingA12
   if (!bearer && !cookie) throw new Error('Sesión sin credencial');
   return bearer ? { authorization: `Bearer ${bearer}` } : { cookie: cookie! };
 }
+
+export async function loginPair(email = 'admin@pilot.edu.co', password = 'TestingA123') {
+  const first = await login(email, password);
+  const second = await login(email, password);
+  return { first, second };
+}
+
 export async function request(path: string, method: string, body?: unknown, headers: Record<string, string> = {}) {
   return app.request(path, { method, headers: { origin: 'http://localhost:5173', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
