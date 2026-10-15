@@ -19,7 +19,7 @@ export async function authorizeScope(
 
   const scope = { kind: target.kind, id: target.id.trim() };
   try {
-    if (await provider.hasAssignment(actor.id, operation, scope)) return { allowed: true, scope };
+    if (await provider.hasAssignment(actor.id, operation, scope) === true) return { allowed: true, scope };
   } catch {
     // A failed or unavailable assignment check never grants access.
   }

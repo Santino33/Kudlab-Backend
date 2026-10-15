@@ -1,0 +1,160 @@
+openapi: 3.1.0
+info:
+  title: Kudlab - Consulta y edición acotada por ámbito (piloto 004)
+  version: 0.1.0
+  description: >-
+    Rutas propuestas para esta implementación, acordadas por el responsable el
+    2026-10-14: TEACHER consulta alumnos y grupos asignados y modifica solo nombre
+    y apellidos de sus alumnos. ADMIN no hereda permisos sobre menores. No
+    sustituye las futuras features de registro, activación, consentimiento,
+    asignación pública o Seguimiento. RF-004 V3 sigue siendo propuesta original.
+servers:
+  - url: /
+security:
+  - sessionCookie: []
+  - sessionBearer: []
+paths:
+  /api/v1/students:
+    get:
+      summary: Listar alumnos autorizados con paginación y filtros reductores
+      description: >-
+        Filtrar por ámbito antes de contar y paginar. Si no hay grupos asignados,
+        retorna lista vacía y total=0. Un filtro ajeno devuelve lista vacía,
+        nunca datos o metadatos de otros grupos. Una caída de asignaciones
+        deniega la solicitud. Solo TEACHER ACTIVA y sesión opaca vigente.
+      parameters:
+        - in: query
+          name: groupId
+          schema: { type: string, format: uuid }
+        - in: query
+          name: ids
+          description: IDs separados por coma; un subconjunto mixto devuelve solo los propios.
+          schema: { type: string }
+        - in: query
+          name: limit
+          schema: { type: integer, minimum: 1, maximum: 100, default: 20 }
+        - in: query
+          name: offset
+          schema: { type: integer, minimum: 0, default: 0 }
+      responses:
+        '200':
+          description: Página limitada al ámbito vigente del docente.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items, total, limit, offset]
+                properties:
+                  items: { type: array, items: { $ref: '#/components/schemas/Student' } }
+                  total: { type: integer, minimum: 0 }
+                  limit: { type: integer, minimum: 1 }
+                  offset: { type: integer, minimum: 0 }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/students/{id}:
+    parameters:
+      - in: path
+        name: id
+        required: true
+        schema: { type: string, format: uuid }
+    get:
+      summary: Consultar alumno asignado
+      responses:
+        '200':
+          description: Datos mínimos de alumno asignado.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Student' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+    patch:
+      summary: Actualizar solo nombre y apellidos del alumno asignado
+      description: >-
+        El estado, código, grupo y consentimiento no son editables aquí.
+        Revalidar asignación, pertenencia y cuenta dentro de la misma
+        transacción de escritura; ante reasignación o fallo, no guardar nada.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                firstName: { type: string, minLength: 1, maxLength: 100 }
+                lastName: { type: string, minLength: 1, maxLength: 100 }
+      responses:
+        '200':
+          description: Alumno actualizado dentro del ámbito vigente.
+          content:
+            application/json:
+              schema: { $ref: '#/components/schemas/Student' }
+        '400': { $ref: '#/components/responses/InvalidInput' }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/groups:
+    get:
+      summary: Opciones y conteos de grupos asignados al docente
+      description: >-
+        Conteos se calculan únicamente sobre alumnos del ámbito vigente,
+        antes de entregar los resultados al cliente. No representa
+        indicadores cognitivos ni un panel de Seguimiento.
+      responses:
+        '200':
+          description: Lista de grupos propios; ninguno si no hay asignaciones.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [items]
+                properties:
+                  items:
+                    type: array
+                    items:
+                      type: object
+                      required: [id, name, studentCount]
+                      properties:
+                        id: { type: string, format: uuid }
+                        name: { type: string }
+                        studentCount: { type: integer, minimum: 0 }
+        '401': { $ref: '#/components/responses/Unauthenticated' }
+        '403': { $ref: '#/components/responses/Forbidden' }
+        '503': { $ref: '#/components/responses/Unavailable' }
+components:
+  securitySchemes:
+    sessionCookie: { type: apiKey, in: cookie, name: better-auth.session_token }
+    sessionBearer: { type: http, scheme: bearer, description: Token opaco de sesión, no JWT }
+  schemas:
+    Student:
+      type: object
+      required: [id, groupId, firstName, lastName]
+      properties:
+        id: { type: string, format: uuid }
+        groupId: { type: string, format: uuid }
+        firstName: { type: string }
+        lastName: { type: string }
+    Error:
+      type: object
+      required: [code, message]
+      properties:
+        code: { type: string }
+        message: { type: string }
+  responses:
+    InvalidInput:
+      description: ID, filtro o campos inválidos; no hay cambios.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unauthenticated:
+      description: Sesión opaca inválida o vencida; sin datos.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Forbidden:
+      description: Rol insuficiente u objetivo no asignado; no confirma existencia.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }
+    Unavailable:
+      description: Imposible comprobar permisos; denegación sin datos.
+      content: { application/json: { schema: { $ref: '#/components/schemas/Error' } } }

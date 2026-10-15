@@ -33,3 +33,14 @@ it('deniega verificaciones inconclusas y objetivos o filtros que el cliente inte
   expect(await authorizeScope(actor, { operation: 'read', target: { kind: 'group', id: 'group-two' } },
     { async hasAssignment() { return false; } })).toEqual({ allowed: false });
 });
+
+it('no convierte una respuesta malformada del proveedor en permiso', async () => {
+  const actor = { id: 'teacher-one', status: 'ACTIVA', role: 'TEACHER' };
+  const target = { kind: 'student' as const, id: 'student-one' };
+  const malformed = { async hasAssignment() { return 'yes'; } };
+  expect(await authorizeScope(actor, { operation: 'read', target }, malformed as never))
+    .toEqual({ allowed: false });
+  const inconclusive = { async hasAssignment() { return undefined; } };
+  expect(await authorizeScope(actor, { operation: 'read', target }, inconclusive as never))
+    .toEqual({ allowed: false });
+});

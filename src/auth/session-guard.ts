@@ -31,6 +31,11 @@ export async function requireAdmin(c: Context<AuthVariables>, next: Next) {
   await next();
 }
 
+export async function requireTeacher(c: Context<AuthVariables>, next: Next) {
+  if (c.get('currentAccount').role !== 'TEACHER') return c.json({ code: 'FORBIDDEN', message: 'Acceso denegado' }, 403);
+  await next();
+}
+
 // Called by an Academic route after requireActive and immediately before accessing
 // protected student/group data. There is no implicit assignment provider.
 export async function authorizeProtectedScope(
