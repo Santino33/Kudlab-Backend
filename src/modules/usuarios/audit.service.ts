@@ -7,7 +7,7 @@ type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 type Snapshot = { name?: string; email?: string; role?: AccountRole; status?: AccountStatus };
 type AuditAction = 'BOOTSTRAP_ADMIN' | 'INVITE' | 'ACTIVATE' | 'UPDATE' | 'REQUEST_ADMIN'
   | 'APPROVE_ADMIN' | 'REJECT_ADMIN' | 'ROLE_CHANGE' | 'DEACTIVATE' | 'REACTIVATE'
-  | 'REQUEST_EMAIL_CHANGE' | 'CONFIRM_EMAIL_CHANGE';
+  | 'REQUEST_EMAIL_CHANGE' | 'CONFIRM_EMAIL_CHANGE' | 'PASSWORD_RESET';
 
 export async function recordAudit(tx: Transaction, targetAccountId: string, actorAuthUserId: string, action: AuditAction, before?: Snapshot, after?: Snapshot) {
   await tx.insert(auditEvents).values({ targetAccountId, actorAuthUserId, action, before: before ?? null, after: after ?? null });

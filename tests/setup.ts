@@ -4,6 +4,7 @@ process.env.BETTER_AUTH_SECRET ??= 'test-secret-only-not-for-production-12345678
 process.env.BETTER_AUTH_URL ??= 'http://localhost:3000';
 process.env.SPA_ORIGIN ??= 'http://localhost:5173';
 process.env.INVITATION_BASE_URL ??= 'http://localhost:5173/accept';
+process.env.RESET_BASE_URL ??= 'http://localhost:5173/reset-password';
 process.env.MAIL_MODE = 'capture';
 process.env.BOOTSTRAP_ADMIN_NAME ??= 'Test Administrator';
 process.env.BOOTSTRAP_ADMIN_EMAIL ??= 'admin@pilot.edu.co';

@@ -11,6 +11,7 @@ const schema = z.object({
   BETTER_AUTH_URL: url,
   SPA_ORIGIN: url,
   INVITATION_BASE_URL: z.string().url(),
+  RESET_BASE_URL: z.string().url(),
   MAIL_MODE: z.enum(['smtp', 'capture']).default('smtp'),
   MAIL_HOST: z.string().optional(),
   MAIL_PORT: z.coerce.number().int().min(1).max(65535).default(587),
@@ -23,6 +24,9 @@ const schema = z.object({
 }).superRefine((config, ctx) => {
   if (config.MAIL_MODE === 'capture' && process.env.NODE_ENV !== 'test') ctx.addIssue({ code: 'custom', message: 'Captura de correo solo en pruebas' });
   if (config.MAIL_MODE === 'smtp' && ![config.MAIL_HOST, config.MAIL_USER, config.MAIL_PASSWORD, config.MAIL_FROM].every(Boolean)) ctx.addIssue({ code: 'custom', message: 'Proveedor de correo incompleto' });
+  const reset = new URL(config.RESET_BASE_URL);
+  if (reset.origin !== new URL(config.SPA_ORIGIN).origin || reset.username || reset.password || reset.search || reset.hash)
+    ctx.addIssue({ code: 'custom', message: 'La recuperación debe dirigir al origen SPA sin credenciales ni parámetros' });
 });
 
 export function loadEnv(source: NodeJS.ProcessEnv = process.env) {
