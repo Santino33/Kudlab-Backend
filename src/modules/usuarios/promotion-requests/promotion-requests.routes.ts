@@ -1,5 +1,5 @@
 import { Hono } from 'hono';
-import type { AuthVariables } from '../../auth/session-guard.js';
+import type { AuthVariables } from '../../../auth/session-guard.js';
 import { decideRequest, listRequests, submitRequest } from './promotion-requests.service.js';
 
 export const promotionRoutes = new Hono<AuthVariables>();

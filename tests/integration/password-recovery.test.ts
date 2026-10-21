@@ -3,8 +3,8 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
 import { user } from '../../src/db/schema/auth.js';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
-import { digestToken } from '../../src/modules/usuarios/invitations.service.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
+import { digestToken } from '../../src/modules/usuarios/invitations/invitations.service.js';
 import { inviteTeacher, login, loginPair, request, reset } from '../helpers.js';
 
 const requestLink = async (email: string) => {
@@ -64,6 +64,21 @@ describe('recuperación transaccional', () => {
       try { await login('admin@pilot.edu.co', pw); return true; } catch { return false; }
     }));
     expect(successes.filter(Boolean)).toHaveLength(1);
+  });
+
+  it('rechaza identidad con rol discordante sin emitir ni consumir recuperación', async () => {
+    const token = await requestLink('admin@pilot.edu.co');
+    capturedMail.length = 0;
+    await db.update(user).set({ role: 'teacher' }).where(eq(user.email, 'admin@pilot.edu.co'));
+
+    const response = await request('/api/v1/auth/password-recovery/request', 'POST', { email: 'admin@pilot.edu.co' });
+    expect(response.status).toBe(202);
+    expect(capturedMail).toHaveLength(0);
+    expect((await redeem(token, 'ChangedPass123')).status).toBe(410);
+
+    await db.update(user).set({ role: 'admin' }).where(eq(user.email, 'admin@pilot.edu.co'));
+    await login();
+    expect((await redeem(token, 'ChangedPass123')).status).toBe(200);
   });
 
   it('si falla auditoría después de revocar sesiones deshace hash, revocación y consumo', async () => {

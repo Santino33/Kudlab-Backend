@@ -1,11 +1,11 @@
 import { Hono } from 'hono';
 import { z } from 'zod';
-import type { AuthVariables } from '../../auth/session-guard.js';
+import type { AuthVariables } from '../../../auth/session-guard.js';
 import { createAccount, getAccount, listAccounts, updateAccount } from './accounts.service.js';
-import { listAudit } from './audit.service.js';
+import { listAudit } from '../shared/audit.service.js';
 import { demote } from './roles.service.js';
 import { changeAccountStatus } from './lifecycle.service.js';
-import { ACCOUNT_STATUSES } from './accounts.types.js';
+import { ACCOUNT_STATUSES } from '../shared/accounts.types.js';
 
 export const accountsRoutes = new Hono<AuthVariables>();
 accountsRoutes.get('/', async (c) => {

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
 import { db } from '../../src/db/client.js';
 import { emailChanges, userAccounts } from '../../src/db/schema/accounts.js';

@@ -1,11 +1,11 @@
 import { eq, sql } from 'drizzle-orm';
-import { db } from '../../db/client.js';
-import { userAccounts } from '../../db/schema/accounts.js';
-import { session, user } from '../../db/schema/auth.js';
-import { AccountError } from './accounts.errors.js';
-import { recordAudit } from './audit.service.js';
+import { db } from '../../../db/client.js';
+import { userAccounts } from '../../../db/schema/accounts.js';
+import { session, user } from '../../../db/schema/auth.js';
+import { AccountError } from '../shared/accounts.errors.js';
+import { recordAudit } from '../shared/audit.service.js';
 import { present } from './accounts.service.js';
-import type { LifecycleAction } from './accounts.types.js';
+import type { LifecycleAction } from '../shared/accounts.types.js';
 
 export async function changeAccountStatus(id: string, actor: string, action: LifecycleAction) {
   return db.transaction(async (tx) => {
@@ -15,8 +15,11 @@ export async function changeAccountStatus(id: string, actor: string, action: Lif
     const reactivate = action === 'reactivate';
     const previous = reactivate ? 'INACTIVA' : 'ACTIVA';
     const next = reactivate ? 'ACTIVA' : 'INACTIVA';
-    if (target.status !== previous || !target.authUserId || !['ADMIN', 'TEACHER'].includes(target.role))
+    const canChangeStatus = target.status === previous &&
+      ['ADMIN', 'TEACHER'].includes(target.role);
+    if (!canChangeStatus || !target.authUserId)
       throw new AccountError(409, 'CONFLICT', 'Estado no modificable');
+
     if (!reactivate && target.role === 'ADMIN') {
       const admins = await tx.select({ id: userAccounts.id }).from(userAccounts).where(sql`${userAccounts.role} = 'ADMIN' and ${userAccounts.status} = 'ACTIVA'`);
       if (admins.length <= 1) throw new AccountError(409, 'LAST_ADMIN', 'Debe quedar un administrador activo');

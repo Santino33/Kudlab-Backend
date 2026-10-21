@@ -2,7 +2,7 @@ import type { Context, Next } from 'hono';
 import { auth } from './auth.js';
 import { userAccounts } from '../db/schema/accounts.js';
 import type { InferSelectModel } from 'drizzle-orm';
-import { authorizeScope, type AssignmentProvider, type ScopeDecision, type ScopeRequest } from '../modules/usuarios/scope-authorization.js';
+import { authorizeScope, type AssignmentProvider, type ScopeDecision, type ScopeRequest } from '../modules/usuarios/shared/scope-authorization.js';
 import { resolveActiveIdentity } from './active-identity.js';
 import { checkSessionActivity, recordAcceptedRequest } from './session-activity.js';
 

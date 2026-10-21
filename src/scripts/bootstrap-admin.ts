@@ -2,8 +2,8 @@ import { sql } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { userAccounts } from '../db/schema/accounts.js';
 import { loadEnv } from '../config/env.js';
-import { institutionalEmail, nameSchema } from '../modules/usuarios/accounts.validation.js';
-import { recordAudit } from '../modules/usuarios/audit.service.js';
+import { institutionalEmail, nameSchema } from '../modules/usuarios/shared/accounts.validation.js';
+import { recordAudit } from '../modules/usuarios/shared/audit.service.js';
 import { createBootstrapCredential } from '../auth/credential-identity.js';
 
 export async function bootstrapAdmin() {

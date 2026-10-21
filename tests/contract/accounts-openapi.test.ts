@@ -6,7 +6,7 @@ import { Ajv2020 } from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import type { FormatsPlugin } from 'ajv-formats';
 import { beforeEach } from 'vitest';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { login, request, reset } from '../helpers.js';
 
 const spec = parse(readFileSync('specs/001-gestionar-cuentas-roles/contracts/accounts.openapi.yaml', 'utf8'));

@@ -3,7 +3,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
 import { user } from '../../src/db/schema/auth.js';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
 
 describe('convergencia: reservas, concurrencia y autoría', () => {

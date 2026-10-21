@@ -7,7 +7,7 @@ import type { FormatsPlugin } from 'ajv-formats';
 import { eq } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
 
 const start = (email: string) => request('/api/v1/auth/password-recovery/request', 'POST', { email });

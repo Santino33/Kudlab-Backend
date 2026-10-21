@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { inviteTeacher, request, reset } from '../helpers.js';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 
 describe('US2 contrato de edición y ascenso', () => {
   beforeEach(reset);

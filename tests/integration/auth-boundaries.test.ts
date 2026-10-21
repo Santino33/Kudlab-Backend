@@ -5,7 +5,7 @@ import { userAccounts } from '../../src/db/schema/accounts.js';
 import { user, account as authCredentials } from '../../src/db/schema/auth.js';
 import { bootstrapAdmin } from '../../src/scripts/bootstrap-admin.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
-import { capturedMail } from '../../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 
 describe('fronteras de autenticación', () => {
   beforeEach(reset);

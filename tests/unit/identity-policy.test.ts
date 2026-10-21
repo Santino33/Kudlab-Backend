@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { hasActiveIdentity } from '../../src/modules/usuarios/accounts.types.js';
+import { hasActiveIdentity } from '../../src/modules/usuarios/shared/accounts.types.js';
 
 it('solo autoriza el rol único vigente y una identidad no bloqueada', () => {
   expect(hasActiveIdentity({ status: 'ACTIVA', role: 'ADMIN' }, { role: 'admin', banned: false })).toBe(true);

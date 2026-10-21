@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { loadEnv } from '../../config/env.js';
+import { loadEnv } from '../../../config/env.js';
 
 export type Mailer = (to: string, url: string) => Promise<void>;
 export const capturedMail: { to: string; url: string }[] = [];

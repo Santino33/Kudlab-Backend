@@ -1,18 +1,18 @@
 import { randomBytes } from 'node:crypto';
 import { and, eq, isNull } from 'drizzle-orm';
-import { db } from '../../db/client.js';
-import { account as credentials, session, user } from '../../db/schema/auth.js';
-import { userAccounts } from '../../db/schema/accounts.js';
-import { passwordRecoveryVerifications } from '../../db/schema/authentication.js';
-import { loadEnv } from '../../config/env.js';
-import { hashCredentialPassword } from '../../auth/credential-identity.js';
-import { authRoleFor, type AccountRole } from './accounts.types.js';
-import { AccountError } from './accounts.errors.js';
-import { institutionalEmail, passwordSchema } from './accounts.validation.js';
-import { lockAccount } from './account-lock.js';
-import { digestToken } from './invitations.service.js';
-import { makeMailer } from './invitations.mailer.js';
-import { recordAudit } from './audit.service.js';
+import { db } from '../../../db/client.js';
+import { account as credentials, session, user } from '../../../db/schema/auth.js';
+import { userAccounts } from '../../../db/schema/accounts.js';
+import { passwordRecoveryVerifications } from '../../../db/schema/authentication.js';
+import { loadEnv } from '../../../config/env.js';
+import { hashCredentialPassword } from '../../../auth/credential-identity.js';
+import { hasActiveIdentity } from '../shared/accounts.types.js';
+import { AccountError } from '../shared/accounts.errors.js';
+import { institutionalEmail, passwordSchema } from '../shared/accounts.validation.js';
+import { lockAccount } from '../shared/account-lock.js';
+import { digestToken } from '../invitations/invitations.service.js';
+import { makeMailer } from '../invitations/invitations.mailer.js';
+import { recordAudit } from '../shared/audit.service.js';
 
 const RESET_TTL_MS = 30 * 60 * 1000;
 const expired = () => new AccountError(410, 'VERIFICATION_EXPIRED', 'Verificación inválida o vencida');
@@ -27,8 +27,7 @@ export async function requestRecovery(rawEmail: string) {
     if (account.status !== 'ACTIVA' || !account.authUserId) return null;
     const [identity] = await tx.select({ email: user.email, role: user.role, banned: user.banned })
       .from(user).where(eq(user.id, account.authUserId)).limit(1);
-    if (!identity || identity.banned || !['ADMIN', 'TEACHER'].includes(account.role) ||
-      identity.role !== authRoleFor(account.role as AccountRole) || identity.email !== email) return null;
+    if (!hasActiveIdentity(account, identity) || identity?.email !== email) return null;
 
     const token = randomBytes(32).toString('base64url');
     const createdAt = new Date();
@@ -56,13 +55,15 @@ export async function confirmRecovery(token: string, rawPassword: unknown) {
     const account = await lockAccount(tx, candidate.accountId);
     const [verification] = await tx.select().from(passwordRecoveryVerifications)
       .where(eq(passwordRecoveryVerifications.tokenDigest, digest)).for('update');
-    if (!verification || verification.consumedAt || verification.invalidatedAt ||
-      verification.expiresAt.getTime() <= Date.now() || account.status !== 'ACTIVA' ||
-      !account.authUserId || verification.emailNormalized !== account.emailNormalized) throw expired();
+    if (!verification) throw expired();
+    const isUsable = !verification.consumedAt && !verification.invalidatedAt &&
+      verification.expiresAt.getTime() > Date.now();
+    const matchesAccount = verification.emailNormalized === account.emailNormalized;
+    if (!isUsable || account.status !== 'ACTIVA' || !account.authUserId || !matchesAccount) throw expired();
+
     const [identity] = await tx.select({ email: user.email, role: user.role, banned: user.banned })
       .from(user).where(eq(user.id, account.authUserId));
-    if (!identity || identity.banned || !['ADMIN', 'TEACHER'].includes(account.role) ||
-      identity.role !== authRoleFor(account.role as AccountRole) || identity.email !== account.emailNormalized) throw expired();
+    if (!hasActiveIdentity(account, identity) || identity?.email !== account.emailNormalized) throw expired();
 
     const password = passwordSchema.safeParse(rawPassword);
     if (!password.success) throw new AccountError(400, 'INVALID_INPUT', 'Contraseña inválida');
