@@ -1,0 +1,13 @@
+# Contratos existentes: invariantes del refactor
+
+No se añaden interfaces ni versiones. Conservar para cada ruta entradas aceptadas, salida (cuerpo y estado), errores, requisitos de identidad/rol/ámbito y efectos externos tal como están implementados; los contratos existentes de [cuentas](../../001-gestionar-cuentas-roles/contracts/accounts.openapi.yaml), [validación](../../002-validar-perfil-acceso/contracts/validation.openapi.yaml), [ámbito](../../002-validar-perfil-acceso/contracts/scope-authorization.md) y [autenticación](../../003-autenticar-usuarios/contracts/auth.openapi.yaml) sirven de referencia junto con las pruebas de contrato. Ante una diferencia entre documento y ejecución actual, registrar la contradicción antes de cambiar la regla.
+
+| Interfaz existente | Entradas, salidas, errores y autorización a conservar | Consumidores a verificar |
+| --- | --- | --- |
+| `/api/v1/accounts` y `/:id`, `/:id/audit`, `/:id/role`, `/:id/deactivate`, `/:id/reactivate` | Parámetros/cuerpo actuales, listado y presentación, errores `AccountError`/validación y guardias de cuenta activa y administración; cambios, invitación inicial, revocación y auditoría | `src/app.ts`, `tests/contract/accounts-*.test.ts`, `tests/integration/accounts-*.test.ts` |
+| `/api/v1/account-invitations/accept` y `/api/v1/account-email-changes/confirm` | Tokens y contraseñas/correos según rutas actuales, resultados y errores de vigencia o conflicto, neutralidad ante errores y efectos de correo/identidad | `src/app.ts`, pruebas de invitaciones y cambios de correo |
+| `/api/v1/admin-role-requests` y `/:id/approve`, `/:id/reject` | Sesión activa, datos de solicitante y autorizaciones por rol; creación/listado/decisión, errores y auditoría actuales | `src/app.ts`, pruebas de rol y autorizaciones |
+| `/api/v1/auth/password-recovery/request`, `/confirm` | Correo y token/contraseña actuales, confirmación neutra al solicitar, errores al confirmar, revocación y auditoría | `src/app.ts`, pruebas de recuperación de contrato e integración |
+| `/api/auth/*` y guardias de `/api/v1/*` | Sesión, estado, rol y ámbito: mismas respuestas cuando una verificación falla, sin reabrir sesiones vencidas | `src/app.ts`, `src/auth/`, pruebas de autenticación y ámbito |
+
+**Importaciones internas (no contrato público HTTP)**: actualizar todas las referencias en `src/app.ts`, `src/auth/`, `src/scripts/bootstrap-admin.ts` y `tests/` al mover archivos. No introducir rutas de compatibilidad o reexportaciones innecesarias: el contrato a conservar para los usuarios de la API es la interacción observable, no la ubicación interna de los archivos.

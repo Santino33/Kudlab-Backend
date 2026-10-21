@@ -2,7 +2,7 @@ import { sql } from 'drizzle-orm';
 import { app } from '../src/app.js';
 import { db } from '../src/db/client.js';
 import { bootstrapAdmin } from '../src/scripts/bootstrap-admin.js';
-import { capturedMail } from '../src/modules/usuarios/invitations.mailer.js';
+import { capturedMail } from '../src/modules/usuarios/invitations/invitations.mailer.js';
 
 export async function reset() {
   await db.execute(sql`truncate password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);

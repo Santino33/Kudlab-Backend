@@ -1,13 +1,13 @@
 import { eq, count, desc, sql } from 'drizzle-orm';
-import { db } from '../../db/client.js';
-import { invitations, userAccounts } from '../../db/schema/accounts.js';
-import { AccountError, parseProfileInput } from './accounts.errors.js';
-import { createAccountSchema, updateAccountSchema } from './accounts.validation.js';
-import { recordAudit } from './audit.service.js';
-import { deliverInvitation, issueInvitation } from './invitations.service.js';
-import { user } from '../../db/schema/auth.js';
-import { changeEmail } from './email-changes.service.js';
-import { lockAccount } from './account-lock.js';
+import { db } from '../../../db/client.js';
+import { invitations, userAccounts } from '../../../db/schema/accounts.js';
+import { AccountError, parseProfileInput } from '../shared/accounts.errors.js';
+import { createAccountSchema, updateAccountSchema } from '../shared/accounts.validation.js';
+import { recordAudit } from '../shared/audit.service.js';
+import { deliverInvitation, issueInvitation } from '../invitations/invitations.service.js';
+import { user } from '../../../db/schema/auth.js';
+import { changeEmail } from '../email-changes/email-changes.service.js';
+import { lockAccount } from '../shared/account-lock.js';
 
 export function present(account: typeof userAccounts.$inferSelect,
   invitation?: Pick<typeof invitations.$inferSelect, 'deliveryStatus' | 'expiresAt'>) {
@@ -61,14 +61,15 @@ export async function updateAccount(id: string, payload: unknown, actor: string)
   }
   await db.transaction(async (tx) => {
     const account = await lockAccount(tx, id);
-    if (data.name && data.name !== account.fullName) {
-      if (account.authUserId) {
-        const updated = await tx.update(user).set({ name: data.name }).where(eq(user.id, account.authUserId)).returning({ id: user.id });
-        if (updated.length !== 1) throw new AccountError(409, 'CONFLICT', 'Identidad desincronizada');
-      }
-      await tx.update(userAccounts).set({ fullName: data.name, updatedAt: new Date() }).where(eq(userAccounts.id, id));
-      await recordAudit(tx, id, actor, 'UPDATE', { name: account.fullName }, { name: data.name });
+    if (!data.name || data.name === account.fullName) return;
+
+    if (account.authUserId) {
+      const updated = await tx.update(user).set({ name: data.name })
+        .where(eq(user.id, account.authUserId)).returning({ id: user.id });
+      if (updated.length !== 1) throw new AccountError(409, 'CONFLICT', 'Identidad desincronizada');
     }
+    await tx.update(userAccounts).set({ fullName: data.name, updatedAt: new Date() }).where(eq(userAccounts.id, id));
+    await recordAudit(tx, id, actor, 'UPDATE', { name: account.fullName }, { name: data.name });
   });
   return getAccount(id);
 }

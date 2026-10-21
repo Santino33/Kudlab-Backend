@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest';
-import { authorizeScope } from '../../src/modules/usuarios/scope-authorization.js';
+import { authorizeScope } from '../../src/modules/usuarios/shared/scope-authorization.js';
 
 it('solo permite al docente activo el objetivo que Académico confirma para la operación actual', async () => {
   const assignments = { 'teacher-one': 'group-one', 'teacher-two': 'group-two' } as const;

@@ -2,7 +2,7 @@ import { eq } from 'drizzle-orm';
 import { db } from '../db/client.js';
 import { userAccounts } from '../db/schema/accounts.js';
 import { user } from '../db/schema/auth.js';
-import { hasActiveIdentity } from '../modules/usuarios/accounts.types.js';
+import { hasActiveIdentity } from '../modules/usuarios/shared/accounts.types.js';
 
 export async function resolveActiveIdentity(authUserId: string) {
   const [account] = await db.select().from(userAccounts).where(eq(userAccounts.authUserId, authUserId)).limit(1);

@@ -3,7 +3,7 @@ import { db } from '../db/client.js';
 import { session, user } from '../db/schema/auth.js';
 import { sessionActivity } from '../db/schema/authentication.js';
 import { userAccounts } from '../db/schema/accounts.js';
-import { hasActiveIdentity } from '../modules/usuarios/accounts.types.js';
+import { hasActiveIdentity } from '../modules/usuarios/shared/accounts.types.js';
 
 const INACTIVITY_MS = 30 * 60 * 1000;
 

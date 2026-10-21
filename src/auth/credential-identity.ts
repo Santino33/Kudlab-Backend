@@ -1,7 +1,7 @@
 import { hashPassword } from 'better-auth/crypto';
 import { db } from '../db/client.js';
 import { user, account as credentials } from '../db/schema/auth.js';
-import { passwordSchema } from '../modules/usuarios/accounts.validation.js';
+import { passwordSchema } from '../modules/usuarios/shared/accounts.validation.js';
 
 type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];
 

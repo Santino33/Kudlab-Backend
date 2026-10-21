@@ -1,6 +1,6 @@
 import { eq } from 'drizzle-orm';
-import { db } from '../../db/client.js';
-import { userAccounts } from '../../db/schema/accounts.js';
+import { db } from '../../../db/client.js';
+import { userAccounts } from '../../../db/schema/accounts.js';
 import { AccountError } from './accounts.errors.js';
 
 export type Transaction = Parameters<Parameters<typeof db.transaction>[0]>[0];

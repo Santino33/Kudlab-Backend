@@ -1,7 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { db } from '../../src/db/client.js';
 import { invitations, userAccounts } from '../../src/db/schema/accounts.js';
-import { listAccounts } from '../../src/modules/usuarios/accounts.service.js';
+import { listAccounts } from '../../src/modules/usuarios/accounts/accounts.service.js';
 import { login, request, reset } from '../helpers.js';
 
 it('consulta 100 cuentas con número acotado de queries y páginas de orden estable', async () => {
