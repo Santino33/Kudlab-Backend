@@ -7,9 +7,9 @@ import { resolveActiveIdentity } from './active-identity.js';
 import { checkSessionActivity, recordAcceptedRequest } from './session-activity.js';
 
 export type CurrentAccount = InferSelectModel<typeof userAccounts>;
-export type AuthVariables = { Variables: { currentAccount: CurrentAccount; authUserId: string } };
+export type AuthVariables = { Variables: { currentAccount: CurrentAccount; authUserId: string; sessionId: string } };
 
-export async function requireActive(c: Context<AuthVariables>, next: Next) {
+export async function prepareActive(c: Context<AuthVariables>) {
   // getSession validates an opaque, persisted session; a signed JWT alone cannot pass.
   const session = await auth.api.getSession({ headers: c.req.raw.headers });
   if (!session?.user || !session.session) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
@@ -20,9 +20,16 @@ export async function requireActive(c: Context<AuthVariables>, next: Next) {
     return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
   c.set('currentAccount', active.account);
   c.set('authUserId', session.user.id);
+  c.set('sessionId', session.session.id);
+  return session.session.id;
+}
+
+export async function requireActive(c: Context<AuthVariables>, next: Next) {
+  const prepared = await prepareActive(c);
+  if (typeof prepared !== 'string') return prepared;
   await next();
   if (c.res.status >= 200 && c.res.status < 300 &&
-    !await recordAcceptedRequest(session.session.id, session.user.id))
+    !await recordAcceptedRequest(prepared, c.get('authUserId')))
     return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
 }
 
