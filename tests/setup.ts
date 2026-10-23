@@ -1,5 +1,5 @@
 process.env.NODE_ENV = 'test';
-process.env.DATABASE_URL ??= 'postgres://postgres:local_test_only@127.0.0.1:55432/kudlab_test';
+process.env.DATABASE_URL ??= 'postgres://postgres:local_test_only@127.0.0.1:55432/kudlab_students_005_test';
 process.env.BETTER_AUTH_SECRET ??= 'test-secret-only-not-for-production-123456789012345';
 process.env.BETTER_AUTH_URL ??= 'http://localhost:3000';
 process.env.SPA_ORIGIN ??= 'http://localhost:5173';

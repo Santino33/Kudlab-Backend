@@ -57,6 +57,13 @@
       "when": 1791905848928,
       "tag": "0007_password_recovery",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792781069494,
+      "tag": "0008_early_wild_child",
+      "breakpoints": true
     }
   ]
 }
