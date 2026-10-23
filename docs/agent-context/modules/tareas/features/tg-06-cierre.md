@@ -1,5 +1,15 @@
 # TG-06: cierre emocional (~1 min)
 
+## Responsabilidad local y externa
+
+**Ficha metodológica, no juego implementado aquí.** El servicio externo muestra celebración/Kud/insignia de participación sin depender de puntaje. Tareas conserva finalización/recorrido acordados. Evolución no genera indicador cognitivo de este cierre; F y constitución III lo excluyen, aunque V3 lo llame «evaluativo».
+
+**Datos/decisiones:** distinguir cierre de tarea, cierre de batería y ausencia de TG-06; no convertir ausencia del cierre en cero de memoria/atención ni invalidar automáticamente indicadores válidos anteriores. Decidir intentos/estado operativo con TA-01 y normalización de resultados con EV-02.
+
+**Verificación backend:** finalización/incidencia trazables, reenvío del cierre sin duplicados y exclusión cognitiva. El mensaje y la insignia independiente del desempeño se verifican en el consumidor externo, no se implementan aquí. Ver [integración](../../../games-integration.md).
+
+## Mecánica y evidencia original (servicio de juegos)
+
 **Resultado:** finalizar positivamente la batería con Kud, sin indicador de memoria/atención ni recompensa por mayor puntuación. [F ficha TG-06 pp. 38–40 y §3.3.3 p. 18](../../../../original/Fundamento%20teorico.docx.pdf), [flujo general](../../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/05-actividades/M%C3%B3dulo%20tareas%20Digitales/Flujo%20general%20del%20modulo%20de%20tareas%20digitales.jpeg).
 
 **Secuencia:** tras tareas previstas → celebración → aparece Kud → mensaje positivo sobre esfuerzo/participación → insignia de participación independiente de desempeño → salida/cierre de sesión. **Registrar:** sesión, finalización y momento, número de tareas completadas, insignia y acción de salida. Solo métricas de participación/finalización/abandono/duración. **Alternos:** sesión interrumpida/abandonada queda diferenciada de completada; si no se ejecuta TG-06, no producir indicadores cognitivos de ausencia. **Aceptar/probar:** igual insignia con desempeños distintos, ausencia de etiquetas «mejor»/«déficit», cierre y fecha trazables; probar finalización e interrupción. **Conflicto:** V3 RF-010/014/016 llama TG-06 evaluativa; F no. Resolver antes de aplicar reglas de intentos/catálogo ([pendientes](../../../unresolved-issues.md)).

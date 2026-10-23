@@ -1,5 +1,7 @@
 # Modelo académico (ERD propuesto)
 
+**Estado:** ninguna de estas tablas está implementada en esta base. Académico será propietario de sus escrituras. Los tipos/cardinalidades siguientes reproducen la fuente; no constituyen una migración aprobada.
+
 | Tabla | Atributos y tipos explícitos | Cardinalidad / límites |
 | --- | --- | --- |
 | `groups` | `id UUID PK`, `teacher_id UUID FK`, `name VARCHAR(50)`, `grade VARCHAR(20)`, `school_year INT` | usuario 1:N grupos; grupo 1:N estudiantes, asignaciones. |
@@ -8,3 +10,13 @@
 | `academic_notes` | `id UUID PK`, `student_id UUID FK`, `teacher_id UUID FK`, `subject ENUM(LENGUAJE,MATEMATICAS)`, `term INT` (nota 1–4), `score NUMERIC(3,2)` | estudiante/docente 1:N notas; V3 pide autor y fecha de actualización, escala/unicidad por definir. |
 
 **Advertencia:** D §2.2 p. 6 pide nombre/documento/grado y estado PENDIENTE_CONSENTIMIENTO, no presentes como columnas de `students`; ERD solo student_code e is_active. La revocación requiere historia pese a 1:1. Sin nulabilidad general documentada. [DBML líneas 44–87 y 156–162](../../../original/DIAGRAMAS-ANALISIS/DIAGRAMAS/03-modelo-datos/01-modelo-logico/esquema.dbml); [V3 RF-005…009](../../../original/requisitos_V3.xlsx); [D pp. 5–6](../../../original/DESCRIPCI%C3%93N%20DE%20DISE%C3%91O%20DE%20SOFTWARE.docx.pdf).
+
+## Decisiones necesarias para persistencia
+
+- **Docente/grupo:** el ERD presupone un docente y un grupo actual. No define transferencias, varios responsables ni acceso a historias tras cambiar de grupo. Diseñar la regla de responsabilidad y su evolución antes de conceder ámbito.
+- **Identidad:** `users.id` histórico no es automáticamente `user_accounts.id` ni `authUserId` actuales; documentar FK/autoría. El estudiante sigue siendo participante sin login aquí.
+- **Consentimiento:** diferenciar evidencia/historia y decisión de vigencia actual; el 1:1 no especifica cómo conservar reemplazos/revocaciones. No añadir un enum final deducido mezclando APROBADO y VIGENTE.
+- **Notas:** el tipo numérico no define la escala escolar; acordar año/periodo, precisión/rango, combinación única y corrección trazable.
+- **Estados:** incompleto en formulario no implica registro persistido; participante inactivo no significa consentimiento rechazado. V3 RF-006 conserva historia al inactivar; retiro legal/retención se resuelve aparte.
+
+Datos mínimos del contrato interno a definir: identificación estable del participante, pertenencia/responsabilidad autorizada y decisión actual de consentimiento/actividad. No exponer el archivo legal a Tareas para que lo interprete por su cuenta. Ver [límites](../../module-boundaries.md) y [pendientes](../../unresolved-issues.md).
