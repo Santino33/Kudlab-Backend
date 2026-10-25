@@ -18,6 +18,15 @@ $ARGUMENTS
 
 You **MUST** consider the user input before proceeding (if not empty).
 
+## Parallel worktree isolation (before hooks or specification)
+
+Each new feature must run in its own Git worktree so simultaneous agents do not share a branch, `.specify/feature.json`, or uncommitted files.
+
+- Identify the repository's Git worktrees with `git worktree list` and the current worktree with `git rev-parse --show-toplevel`. If already running in a secondary worktree dedicated to this feature, continue there; do not create another worktree. If the user provided a worktree path, use that path only after verifying it belongs to this repository and is dedicated to this feature.
+- Otherwise, generate the short name from the description (step 1 below) and choose an unused sibling directory such as `../<repo-name>-<short-name>` and an unused branch such as `feat/<short-name>` (or exactly `GIT_BRANCH_NAME` when explicitly provided). Use the existing base branch, preferring `origin/main` when available; do not switch the branch in the current worktree. Check whether that branch or worktree already exists before creating anything: reuse its worktree if it belongs to this feature, otherwise choose a non-conflicting name. Never overwrite or remove another worktree.
+- Create the new worktree with `git worktree add -b <branch> <sibling-path> <base-ref>`. **Stop this invocation after creating it**: the current agent session still operates in its original working directory. Report the absolute worktree path and branch, and instruct the user to open a new agent session in that directory and rerun `/speckit.specify` with the same feature description. Do not run hooks, create a spec, or write `.specify/feature.json` in the original directory.
+- Once running inside the feature worktree, run all hooks and specification steps there. If a `before_specify` hook also creates branches, avoid creating a second branch or switching another worktree; if the mandatory hook cannot run safely on the existing feature branch, report the conflict and stop rather than silently skipping it.
+
 ## Pre-Execution Checks
 
 **Check for extension hooks (before specification)**:
@@ -71,9 +80,9 @@ Given that feature description, do this:
      - "Create a dashboard for analytics" → "analytics-dashboard"
      - "Fix payment processing timeout bug" → "fix-payment-timeout"
 
-2. **Branch creation** (optional, via hook):
+2. **Branch creation** (already handled by the feature worktree, or via hook when configured):
 
-   If a `before_specify` hook ran successfully in the Pre-Execution Checks above, it will have created/switched to a git branch and output JSON containing `BRANCH_NAME` and `FEATURE_NUM`. Note these values for reference, but the branch name does **not** dictate the spec directory name.
+   If a `before_specify` hook ran successfully in the Pre-Execution Checks above, note its `BRANCH_NAME` and `FEATURE_NUM`. Verify it did not switch away from the feature worktree branch. The branch name does **not** dictate the spec directory name.
 
    If the user explicitly provided `GIT_BRANCH_NAME`, pass it through to the hook so the branch script uses the exact value as the branch name (bypassing all prefix/suffix generation).
 
@@ -270,12 +279,13 @@ Check if `.specify/extensions.yml` exists in the project root.
 ## Completion Report
 
 Report completion to the user with:
+- Absolute feature worktree path and branch
 - `SPECIFY_FEATURE_DIRECTORY` — the feature directory path
 - `SPEC_FILE` — the spec file path
 - Checklist results summary
 - Readiness for the next phase (`/speckit.clarify` or `/speckit.plan`)
 
-**NOTE:** Branch creation is handled by the `before_specify` hook (git extension). Spec directory and file creation are always handled by this core command.
+**NOTE:** Branch isolation is handled by the feature worktree; a configured `before_specify` hook must not create a competing branch. Spec directory and file creation are always handled by this core command inside the feature worktree.
 
 ## Quick Guidelines
 
