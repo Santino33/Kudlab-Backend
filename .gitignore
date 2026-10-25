@@ -9,5 +9,8 @@ build/
 *.sql.gz
 *.pem
 *.key
+!/tests/fixtures/smtp/ca.pem
+!/tests/fixtures/smtp/server-cert.pem
+!/tests/fixtures/smtp/server-key.pem
 coverage/
 *.log

@@ -1,0 +1,63 @@
+# Quickstart: Validación de correo SMTP
+
+Guía de validación del diseño, no evidencia de ejecución. Los tests nuevos y EMAIL_CHANGE_BASE_URL estarán disponibles después de implementar. Contratos: [mail.md](contracts/mail.md); estados: [data-model.md](data-model.md).
+
+## Prerrequisitos
+
+- Node.js 24 y npm; PostgreSQL aislado, migrado y sin datos reales. Los helpers truncan tablas: nunca apuntar pruebas a producción.
+- Para aceptación externa: proveedor con DNS/certificado válido, remitente autorizado y buzones exclusivamente controlados del personal de prueba. No usar menores ni datos académicos.
+- SPA con las tres pantallas de acción acordadas; si no existe, se puede validar el transporte y confirmar mediante las rutas existentes, pero no declarar el recorrido completo de usuario aprobado.
+
+## Preparación
+
+Desde la raíz del worktree:
+
+```bash
+npm ci
+cp .env.example .env
+```
+
+No sobrescribir un `.env` existente: omitir la copia si ya está preparado. Editar localmente DATABASE_URL, secretos y bootstrap con valores ficticios. Definir el origen SPA y tres URLs según el contrato; tras implementar, incluir EMAIL_CHANGE_BASE_URL. No pegar credenciales en comandos guardados, capturas o Git.
+
+```bash
+npm run db:migrate
+npm run typecheck
+npm test -- tests/unit
+npm test -- tests/contract
+npm test -- tests/integration
+```
+
+Inyectar DATABASE_URL de la base aislada en el proceso de pruebas: Vitest no carga automáticamente el `.env` de npm start. `tests/setup.ts` utiliza por defecto `127.0.0.1:55432/kudlab_test` y activa capture. Las migraciones sí cargan `.env`: comprobar que ambas operaciones apuntan a la misma base aislada. La feature no requiere migraciones nuevas.
+
+## Matriz automatizada esperada
+
+1. **Contenido/captura**: crear invitación, activar una cuenta ficticia, solicitar cambio de correo y recuperación usando helpers existentes. Inspeccionar captura: propósito, destinatario, asunto, cuerpo y enlace correctos, una entrada por intento. No enviar externamente.
+2. **Configuración**: campos ausentes, blancos, puerto inválido, URLs ajenas al origen y controles producen errores redactados; capture fuera de test impide arranque antes de bootstrap/listen. Nunca imprimir el objeto de configuración.
+3. **SMTP cifrado local**: servidor de pruebas smtp-server con CA/certificado ficticios para localhost; confiar solo esa CA en el proceso de test mediante NODE_EXTRA_CA_CERTS si se usa proceso hijo. Probar STARTTLS y TLS implícito sin desactivar verificación. Preparar archivos/certificados en tests/fixtures/smtp durante implementación; no usar claves reales.
+4. **TLS negativo**: servidor sin STARTTLS y certificado no confiable/nombre incorrecto no reciben el cuerpo del mensaje; no hay fallback inseguro.
+5. **Clasificación**: rechazo RCPT o DATA produce fallo confirmado. Servidor que lee DATA y cierra sin confirmación final produce unknown y un solo intento, nunca ERROR por suposición. Comprobar cierre de conexiones y servidor al terminar.
+6. **Persistencia**: reutilizar prueba de fallo al guardar ENVIADA; debe conservar PENDIENTE y devolver DELIVERY_STATUS_UNKNOWN aunque el mensaje se haya aceptado. La cuenta no se duplica ni se activa.
+7. **Recuperación**: comparar respuesta para cuentas activa, pendiente, inactiva y desconocida, también con rechazo/unknown. Siempre el 202 neutro del contrato para solicitudes válidas; solo cuenta apta recibe enlace.
+8. **Privacidad**: introducir secretos, direcciones, tokens y texto centinela; comprobar ausencia en diagnósticos. Mantener logs del transporte desactivados. Captura completa solo para datos ficticios.
+9. **Regresiones**: verificación vencida/usada/sustituida rechazada; cambio de correo no sustituye el vigente antes de confirmar; recuperación completada revoca sesiones; sin permiso no hay invitación ni cambio de correo.
+
+Los casos nuevos se incorporarán a los directorios ya descubiertos por Vitest. Actualizar el caso actual que usa SMTP sin STARTTLS y espera 201: la nueva política ya no permite ese éxito.
+
+## Ensayo con proveedor real
+
+1. Usar despliegue de prueba y buzones controlados, no los tests de captura. Configurar MAIL_MODE=smtp, credenciales, puerto 465 o STARTTLS obligatorio, y URLs SPA. Mantener las credenciales fuera del repositorio.
+2. Iniciar el servicio:
+
+   ```bash
+   npm start
+   ```
+
+3. Entrar como administrador mediante el cliente autorizado existente. Emitir cinco invitaciones a cuentas ficticias y completar sus acciones; usar cuentas activas para cinco cambios de correo y cinco recuperaciones. Es posible reutilizar buzones/alias controlados que cumplan la política institucional. Si solo hay cliente HTTP, respetar origen/sesión establecidos en contratos existentes.
+4. Anotar por referencia de operación: instante de solicitud, aceptación y aparición en buzón. No guardar enlaces ni capturas con tokens. Verificar destino correcto y acción completada. SC-001 exige 15/15 recibidos, 15/15 con <60 s en este tamaño de muestra; si falla, registrar incidencia, no equiparar ENVIADA con recepción.
+5. Revisar logs con acceso de operación: propósito, referencia, resultado y categoría; cero secretos/contenido. Probar una credencial errónea en el entorno aislado y restaurarla; debe verse fallo operativo, no datos sensibles.
+6. Pedir a cinco adultos de prueba que identifiquen acción y forma de continuar de los tres mensajes sin ayuda. SC-006 exige al menos cuatro personas que lo hagan correctamente en los tres casos.
+7. Registrar resultados y limitaciones sin cambiar automáticamente estado de aprobación de spec. Destruir o revocar credenciales de prueba mediante el procedimiento operativo existente; no introducir políticas nuevas de conservación en esta feature.
+
+## Aceptación y límites
+
+SC-002–005 requieren matriz automatizada y revisión de logs; SC-001/006 requieren los ensayos anteriores. Un test SMTP local no prueba recepción externa. `verify()` puede ayudar a diagnosticar conexión/autenticación, pero no sustituye enviar al buzón ni prueba que se acepte un destinatario. No hay endpoint de envío de prueba ni reintentos automáticos.
