@@ -18,6 +18,8 @@ El código actual crea cuentas pendientes TEACHER por invitación, no cuentas ac
 
 Las cuatro fichas RF siguientes conservan trazabilidad de V3, pero no cubren solas todas las features actuales. Para invitaciones/ascenso/correo/recuperación usar también [flujos complementarios](features/flujos-complementarios.md). No trasladar automáticamente estas reglas a la autorización del servicio de juegos.
 
+La [documentación OpenAPI/Swagger UI](features/documentacion-api-swagger.md) consolida Usuarios y las cinco operaciones de estudiantes de Académico. Esas operaciones son del profesor TEACHER en su ámbito propio; no representan acceso de estudiantes ni permisos ADMIN universales. Contrato canónico en `docs/api/openapi.yaml`, UI disponible solo en desarrollo/pruebas.
+
 ## Referencia funcional de las fuentes
 
 1. **Propósito:** gestionar cuentas, sesiones y permisos de acceso al piloto (V3 RF-001…004; A CU01-S1…S4/CU02/CU03, pp. 26–32).
