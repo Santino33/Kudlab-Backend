@@ -1,0 +1,801 @@
+openapi: 3.1.0
+info:
+  title: Kudlab — API implementada
+  version: 0.1.0
+  description: >-
+    Catálogo contrastado con src/app.ts y sus routers. Usuarios del personal y cinco
+    operaciones sobre registros de estudiantes realizadas por profesores TEACHER
+    en su ámbito propio. Los estudiantes no acceden ni tienen cuentas aquí.
+    No incluye grupos, tareas, juegos, consentimiento, registro público ni Google.
+    Los contratos históricos propuestos no acreditan disponibilidad.
+    Todos los ejemplos son ficticios/no operativos: no enviar correo a sus direcciones
+    ni utilizar sus contraseñas o marcadores como credenciales reales.
+    Sesión persistida por cookie o Bearer opaco; JWT emitido para interoperabilidad
+    NO sustituye sesión. Inactividad local máxima 30 minutos, aun con rememberMe.
+    Esta versión documenta código, no certifica despliegue productivo.
+servers:
+  - url: /
+tags:
+  - {name: Acceso, description: Acceso del personal; únicamente lista blanca Better Auth.}
+  - {name: Cuentas, description: Gestión por ADMIN activo.}
+  - {name: Invitaciones, description: Activación mediante token de un uso.}
+  - {name: CambiosCorreo, description: Confirmación de correo nuevo.}
+  - {name: SolicitudesRol, description: Ascenso solicitado por TEACHER y decidido por ADMIN.}
+  - {name: Recuperacion, description: Recuperación neutra y confirmación sin login automático.}
+  - {name: Estudiantes, description: Registros gestionados por TEACHER en grupos propios; ADMIN no tiene acceso implícito.}
+paths:
+  /api/auth/sign-in/email:
+    post:
+      operationId: signInEmail
+      summary: Iniciar sesión del personal
+      tags: [Acceso]
+      security: []
+      description: >-
+        JSON estricto; requiere identidad y cuenta ACTIVA concordantes.
+        Credenciales erróneas, inexistentes, pendientes o inactivas producen el mismo 401.
+        rememberMe omitido equivale a true: cookie persistente Max-Age=1800.
+        false omite Max-Age y crea dont_remember; el proveedor puede crear sesión
+        interna de 86400s, sin eliminar el control local de 30min de inactividad.
+        La respuesta conserva cabeceras del proveedor, no devuelve JWT como sesión.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [email, password]
+              properties:
+                email: {type: string, format: email, description: Correo de la identidad existente., examples: [docente@ejemplo.edu.co]}
+                password: {type: string, minLength: 1, description: Contraseña existente; el parser de login solo exige no vacío., examples: [DemoFicticia123]}
+                rememberMe: {type: boolean, default: true, description: Persistencia de cookie; no evita expiración por inactividad., examples: [false]}
+      responses:
+        '200':
+          description: Identidad filtrada y credencial de sesión persistida.
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
+            set-auth-token: {$ref: '#/components/headers/SessionToken'}
+          content:
+            application/json:
+              schema: {type: object, required: [user], properties: {user: {$ref: '#/components/schemas/Identity'}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/InvalidCredentials'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/auth/get-session:
+    get:
+      operationId: getSession
+      summary: Consultar sesión propia
+      description: Revalida identidad/cuenta y actividad. No renueva actividad protegida ni reenvía set-auth-jwt del proveedor.
+      tags: [Acceso]
+      security: &session [{sessionCookie: []}, {secureSessionCookie: []}, {sessionBearer: []}]
+      responses:
+        '200':
+          description: Sesión propia vigente, sin credencial opaca.
+          content: {application/json: {schema: {$ref: '#/components/schemas/SessionView'}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/auth/sign-out:
+    post:
+      operationId: signOut
+      summary: Cerrar la sesión presentada
+      description: >-
+        Sin cuerpo requerido; el adaptador ignora cualquier cuerpo recibido y pasa {} al proveedor.
+        No admite opciones de callback o redirección. Invalida solo sesión presentada y expira cookies.
+        Con cookie se aplican controles de origen/CSRF del proveedor; respetar trustedOrigins.
+        El proveedor captura ciertos fallos de borrado y puede responder éxito; no se garantiza 503
+        para todo fallo interno. No se restauran sesiones cerradas.
+      tags: [Acceso]
+      security: *session
+      responses:
+        '200':
+          description: Cierre procesado; descartar la credencial local.
+          headers:
+            Set-Cookie:
+              description: Una o varias cookies expiradas (session_token/dont_remember y auxiliares); Max-Age=0. No nueva credencial.
+              schema: {type: string, examples: ['better-auth.session_token=; Max-Age=0; Path=/; HttpOnly; SameSite=Lax']}
+          content: {application/json: {schema: {$ref: '#/components/schemas/Success'}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/ProviderForbidden'}
+        '429': {$ref: '#/components/responses/RateLimit'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        default: {$ref: '#/components/responses/ProviderFailure'}
+  /api/auth/jwks:
+    get:
+      operationId: getJwks
+      summary: Consultar claves públicas de verificación
+      description: >-
+        Público, delegado a Better Auth 1.7.7. Publica solo claves públicas.
+        EdDSA/Ed25519 por defecto; no exigir campos RSA. Puede generar/persistir
+        claves cuando no existen: no implica ausencia de acceso a BD.
+      tags: [Acceso]
+      security: []
+      responses:
+        '200':
+          description: Conjunto de claves públicas.
+          content: {application/json: {schema: {$ref: '#/components/schemas/Jwks'}}}
+        '429': {$ref: '#/components/responses/RateLimit'}
+        default: {$ref: '#/components/responses/ProviderFailure'}
+  /api/auth/token:
+    get:
+      operationId: issueInteropToken
+      summary: Emitir JWT de interoperabilidad
+      description: >-
+        Exige sesión persistida, cuenta activa e inactividad válida antes de delegar.
+        No renueva actividad protegida. JWT por defecto 15min, EdDSA, iss/aud=baseURL,
+        sub=ID identidad. Payload de usuario del proveedor, no prometer DTO filtrado del login.
+        Este JWT aislado no supera guardas de negocio. Puede devolver UNAUTHORIZED
+        delegado si la sesión deja de valer entre precontrol y emisión.
+      tags: [Acceso]
+      security: *session
+      responses:
+        '200':
+          description: JWT firmado, no credencial de sesión.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [token]
+                properties:
+                  token: {type: string, description: JWT firmado; marcador ficticio no canjeable en este ejemplo., examples: [JWT_FICTICIO_NO_UTILIZABLE]}
+        '401':
+          description: Precontrol UNAUTHENTICATED o proveedor UNAUTHORIZED; sesión inválida.
+          content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}}}
+        '429': {$ref: '#/components/responses/RateLimit'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+        default: {$ref: '#/components/responses/ProviderFailure'}
+  /api/v1/accounts:
+    get:
+      operationId: listAccounts
+      summary: Listar cuentas del personal
+      description: Solo ADMIN activo. Orden descendente por creación e ID; estado de última invitación cuando existe.
+      tags: [Cuentas]
+      security: *session
+      parameters:
+        - {name: limit, in: query, description: Tamaño de página., schema: {type: integer, minimum: 1, maximum: 100, default: 20, examples: [20]}}
+        - {name: offset, in: query, description: Desplazamiento desde cero., schema: {type: integer, minimum: 0, default: 0, examples: [0]}}
+        - {name: status, in: query, description: Estado exacto opcional., schema: {$ref: '#/components/schemas/AccountStatus'}}
+      responses:
+        '200':
+          description: Página de cuentas.
+          content: {application/json: {schema: {$ref: '#/components/schemas/AccountPage'}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    post:
+      operationId: createAccount
+      summary: Crear cuenta pendiente TEACHER
+      description: >-
+        ADMIN activo crea cuenta PENDIENTE y emite invitación de 7 días, no contraseña administrativa.
+        El bootstrap del primer ADMIN no es endpoint. SMTP puede fallar después de persistir
+        la cuenta;503 no garantiza rollback. deliveryStatus ENVIADA solo después de confirmar proveedor.
+      tags: [Cuentas]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [name, email, role]
+              properties:
+                name: {$ref: '#/components/schemas/Name'}
+                email: {$ref: '#/components/schemas/InstitutionalEmail'}
+                role: {type: string, const: TEACHER, description: Único rol permitido en alta ordinaria., examples: [TEACHER]}
+      responses:
+        '201': {$ref: '#/components/responses/AccountCreated'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/accounts/{id}:
+    parameters: [{$ref: '#/components/parameters/AccountId'}]
+    get:
+      operationId: getAccount
+      summary: Consultar cuenta
+      description: ADMIN activo; ID de cuenta de negocio, distinto de identidad Better Auth.
+      tags: [Cuentas]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/AccountResult'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    patch:
+      operationId: updateAccount
+      summary: Editar nombre o correo de cuenta
+      description: >-
+        ADMIN activo. JSON estricto con al menos nombre o correo. No cambia rol/estado.
+        Cuenta pendiente puede recibir invitación nueva al reenviar correo, invalidando anterior.
+        Cuenta activa reserva pendingEmail hasta confirmación del titular (7d).
+        Cambios pueden persistir antes de fallo SMTP; no prometer rollback por 503.
+      tags: [Cuentas]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                name: {$ref: '#/components/schemas/Name'}
+                email: {$ref: '#/components/schemas/InstitutionalEmail'}
+      responses:
+        '200': {$ref: '#/components/responses/AccountResult'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/accounts/{id}/audit:
+    parameters: [{$ref: '#/components/parameters/AccountId'}]
+    get:
+      operationId: listAccountAudit
+      summary: Consultar auditoría de cuenta
+      description: ADMIN activo; comprueba existencia antes de listar. Array ordenado por fecha ascendente, sin paginación ni envoltorio.
+      tags: [Cuentas]
+      security: *session
+      responses:
+        '200':
+          description: Eventos de la cuenta, sin secretos ni credenciales.
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/AuditEvent'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/accounts/{id}/role:
+    parameters: [{$ref: '#/components/parameters/AccountId'}]
+    put:
+      operationId: demoteAccount
+      summary: Descender ADMIN a TEACHER
+      description: ADMIN activo; destino debe ser ADMIN activo con identidad.409 LAST_ADMIN si es último administrador activo. Ascenso no disponible mediante este PUT.
+      tags: [Cuentas]
+      security: *session
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: false, required: [role], properties: {role: {type: string, const: TEACHER, description: Rol de destino., examples: [TEACHER]}}}}}
+      responses:
+        '200': {$ref: '#/components/responses/AccountResult'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/accounts/{id}/deactivate:
+    parameters: [{$ref: '#/components/parameters/AccountId'}]
+    post:
+      operationId: deactivateAccount
+      summary: Inactivar cuenta activa
+      description: ADMIN activo; exige confirmación. Revoca sesiones y conserva historial.409 LAST_ADMIN si no quedaría otro ADMIN activo; estado no modificable también409.
+      tags: [Cuentas]
+      security: *session
+      requestBody: {$ref: '#/components/requestBodies/Confirmation'}
+      responses:
+        '200': {$ref: '#/components/responses/AccountResult'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/accounts/{id}/reactivate:
+    parameters: [{$ref: '#/components/parameters/AccountId'}]
+    post:
+      operationId: reactivateAccount
+      summary: Reactivar cuenta inactiva
+      description: ADMIN activo; exige confirmación. No restaura sesiones previas; es necesario iniciar sesión nuevamente.409 si estado no es INACTIVA o identidad no permite transición.
+      tags: [Cuentas]
+      security: *session
+      requestBody: {$ref: '#/components/requestBodies/Confirmation'}
+      responses:
+        '200': {$ref: '#/components/responses/AccountResult'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/account-invitations/accept:
+    post:
+      operationId: acceptInvitation
+      summary: Aceptar invitación y fijar contraseña
+      description: Sin sesión. Token7d de un uso, vinculado a correo/cuenta PENDIENTE TEACHER; no es credencial de sesión.409 ACCOUNT_CONFLICT si no puede activarse;410 INVITATION_EXPIRED si no canjeable.
+      tags: [Invitaciones]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, password]
+              properties:
+                token: {$ref: '#/components/schemas/VerificationToken'}
+                password: {$ref: '#/components/schemas/NewPassword'}
+      responses:
+        '200':
+          description: Cuenta activada; no entrega credenciales de sesión.
+          content: {application/json: {schema: {type: object, required: [status], properties: {status: {type: string, const: ACTIVA, description: Estado resultante., examples: [ACTIVA]}}}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '410': {$ref: '#/components/responses/InvitationExpired'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/account-email-changes/confirm:
+    post:
+      operationId: confirmEmailChange
+      summary: Confirmar correo nuevo
+      description: Sin sesión. Token7d de un uso verifica acceso al correo, no identidad del llamador HTTP. Consume token, confirma nuevo correo y revoca sesiones.410 TOKEN_EXPIRED o409 si no verificable.
+      tags: [CambiosCorreo]
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: false, required: [token], properties: {token: {$ref: '#/components/schemas/VerificationToken'}}}}}
+      responses:
+        '200':
+          description: Correo confirmado y sesiones anteriores revocadas.
+          content: {application/json: {schema: {type: object, required: [verified], properties: {verified: {type: boolean, const: true, description: Confirmación completada., examples: [true]}}}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '410': {$ref: '#/components/responses/EmailExpired'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin-role-requests:
+    get:
+      operationId: listRoleRequests
+      summary: Listar solicitudes de ascenso visibles
+      description: Sesión activa. ADMIN ve pendientes; TEACHER ve únicamente propias. Orden solicitado descendente, sin parámetros de paginación implementados.
+      tags: [SolicitudesRol]
+      security: *session
+      responses:
+        '200':
+          description: Array sin envoltorio de solicitudes visibles.
+          content: {application/json: {schema: {type: array, items: {$ref: '#/components/schemas/RoleRequest'}}}}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+    post:
+      operationId: submitRoleRequest
+      summary: Solicitar ascenso a ADMIN
+      description: Solo TEACHER activo; el router no consume cuerpo. Identidad del solicitante sale de sesión, no del cliente.409 si ya tiene solicitud pendiente.
+      tags: [SolicitudesRol]
+      security: *session
+      responses:
+        '201': {$ref: '#/components/responses/RoleResult'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin-role-requests/{id}/approve:
+    parameters: [{$ref: '#/components/parameters/RequestId'}]
+    post:
+      operationId: approveRoleRequest
+      summary: Aprobar solicitud de ascenso
+      description: ADMIN activo, sin auto-decisión; solicitante TEACHER activo elegible. No consume cuerpo. Cambia rol y audita;409 si decidida, no elegible o identidad desincronizada.
+      tags: [SolicitudesRol]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/RoleResult'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/admin-role-requests/{id}/reject:
+    parameters: [{$ref: '#/components/parameters/RequestId'}]
+    post:
+      operationId: rejectRoleRequest
+      summary: Rechazar solicitud de ascenso
+      description: ADMIN activo, sin auto-decisión y con solicitante elegible actualmente. No consume cuerpo. Mantiene rol del solicitante;409 si ya decidida o no elegible.
+      tags: [SolicitudesRol]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/RoleResult'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '409': {$ref: '#/components/responses/Conflict'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/auth/password-recovery/request:
+    post:
+      operationId: requestPasswordRecovery
+      summary: Solicitar recuperación de contraseña
+      description: >-
+        Pública. Correo institucional válido;202 neutro para cuenta inexistente, pendiente,
+        inactiva o activa. Solo cuenta activa concordante obtiene token30min; solicitud
+        nueva invalida anteriores. Fallo SMTP no revela existencia ni garantiza entrega.
+      tags: [Recuperacion]
+      security: []
+      requestBody:
+        required: true
+        content: {application/json: {schema: {type: object, additionalProperties: false, required: [email], properties: {email: {$ref: '#/components/schemas/InstitutionalEmail'}}}}}
+      responses:
+        '202':
+          description: Confirmación neutra, no confirmación de envío.
+          content: {application/json: {schema: {type: object, required: [message], properties: {message: {type: string, const: 'Si corresponde, recibirás instrucciones en tu correo.', description: Mensaje uniforme., examples: ['Si corresponde, recibirás instrucciones en tu correo.']}}}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/auth/password-recovery/confirm:
+    post:
+      operationId: confirmPasswordRecovery
+      summary: Confirmar recuperación y sustituir contraseña
+      description: Pública. Token30min de un uso, ligado a cuenta ACTIVA/correo vigente; consume verificación, cambia contraseña y revoca sesiones sin login automático.410 VERIFICATION_EXPIRED si no canjeable;400 contraseña inválida conserva token.
+      tags: [Recuperacion]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [token, newPassword]
+              properties:
+                token: {$ref: '#/components/schemas/VerificationToken'}
+                newPassword: {$ref: '#/components/schemas/NewPassword'}
+      responses:
+        '200':
+          description: Contraseña sustituida y sesiones revocadas; volver a iniciar sesión.
+          content: {application/json: {schema: {$ref: '#/components/schemas/Success'}}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '410': {$ref: '#/components/responses/Expired'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/students:
+    get:
+      operationId: listStudents
+      summary: Listar estudiantes propios
+      description: Solo TEACHER activo y grupos propios. Incluye activos e inactivos, orden ID ascendente. No paginación ni filtros; cualquier query causa400 tras guarda. ADMIN denegado.
+      tags: [Estudiantes]
+      security: *session
+      responses:
+        '200':
+          description: Solo registros del ámbito del profesor; lista vacía permitida.
+          content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, description: Registros propios., items: {$ref: '#/components/schemas/Student'}, examples: [[]]}}}}}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+    post:
+      operationId: createStudent
+      summary: Registrar estudiante inactivo en grupo propio
+      description: >-
+        TEACHER activo, grupo propio. Alta fija isActive=false, no crea cuenta o sesión estudiantil.
+        UUID de groupId malformado400; grupo ajeno/ausente404 uniforme. Query prohibida.
+        Código global único, incluido inactivo;409 no revela titular/grupo. Cuerpo estricto.
+      tags: [Estudiantes]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              required: [groupId, studentCode, firstName, lastName]
+              properties:
+                groupId: {type: string, format: uuid, description: Grupo propio; no identidad del profesor., examples: [00000000-0000-4000-8000-000000000002]}
+                studentCode: {$ref: '#/components/schemas/StudentCode'}
+                firstName: {$ref: '#/components/schemas/StudentName'}
+                lastName: {$ref: '#/components/schemas/StudentName'}
+      responses:
+        '201': {$ref: '#/components/responses/StudentResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '409': {$ref: '#/components/responses/AcademicConflict'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/students/{id}:
+    parameters: [{$ref: '#/components/parameters/StudentId'}]
+    get:
+      operationId: getStudent
+      summary: Consultar estudiante propio
+      description: TEACHER activo y ámbito propio. ID malformado/ajeno/ausente devuelve el mismo404. Query prohibida; sin autorización implícita para ADMIN.
+      tags: [Estudiantes]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/StudentResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+    patch:
+      operationId: updateStudent
+      summary: Corregir código o nombres de estudiante propio
+      description: TEACHER activo y ámbito propio comprobado antes de validación detallada del cuerpo. Al menos un campo permitido; no editar ID/grupo/estado, incluso con valor igual. Query prohibida.
+      tags: [Estudiantes]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: false
+              minProperties: 1
+              properties:
+                studentCode: {$ref: '#/components/schemas/StudentCode'}
+                firstName: {$ref: '#/components/schemas/StudentName'}
+                lastName: {$ref: '#/components/schemas/StudentName'}
+      responses:
+        '200': {$ref: '#/components/responses/StudentResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '409': {$ref: '#/components/responses/AcademicConflict'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/students/{id}/deactivate:
+    parameters: [{$ref: '#/components/parameters/StudentId'}]
+    post:
+      operationId: deactivateStudent
+      summary: Inactivar estudiante propio sin borrarlo
+      description: TEACHER activo y ámbito propio. Exige cuerpo de longitud cero y sin query; {} también causa400. Idempotente, conserva todos los datos y fija isActive=false. No activa ni borra.
+      tags: [Estudiantes]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/StudentResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+components:
+  securitySchemes:
+    sessionCookie:
+      type: apiKey
+      in: cookie
+      name: better-auth.session_token
+      description: Cookie HttpOnly de sesión persistida con baseURL HTTP local. No JWT. SameSite=Lax y Path=/; navegador no puede fijar libremente Cookie.
+    secureSessionCookie:
+      type: apiKey
+      in: cookie
+      name: __Secure-better-auth.session_token
+      description: Variante de cookie con baseURL HTTPS configurado; Secure/HttpOnly/SameSite=Lax. Alternativa a HTTP o Bearer, no exigir las tres.
+    sessionBearer:
+      type: http
+      scheme: bearer
+      description: Credencial OPACA de sesión Better Auth persistida, obtenida en set-auth-token. No usar el JWT de interoperabilidad.
+  parameters:
+    AccountId: {name: id, in: path, required: true, description: UUID de cuenta de negocio; inválido o ausente404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000001]}}
+    RequestId: {name: id, in: path, required: true, description: UUID de solicitud; inválido o ausente404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000003]}}
+    StudentId: {name: id, in: path, required: true, description: UUID de estudiante propio; malformado/ajeno/ausente produce mismo404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000004]}}
+  headers:
+    SessionCookie:
+      description: Cookie HttpOnly/SameSite=Lax/Path=/; variante __Secure- cuando baseURL HTTPS. Puede emitir dont_remember; no cookie cache habilitada.
+      schema: {type: string, examples: ['better-auth.session_token=SESION_FICTICIA; Path=/; HttpOnly; SameSite=Lax']}
+    SessionToken:
+      description: Credencial opaca de sesión para clientes Bearer; no JWT. Expuesta por CORS actual cuando corresponde.
+      schema: {type: string, examples: [SESION_FICTICIA_NO_UTILIZABLE]}
+  requestBodies:
+    Confirmation:
+      required: true
+      content: {application/json: {schema: {type: object, additionalProperties: false, required: [confirm], properties: {confirm: {type: boolean, const: true, description: Confirmación explícita de transición., examples: [true]}}}}}
+  schemas:
+    Jwks:
+      type: object
+      required: [keys]
+      properties:
+        keys:
+          type: array
+          description: Claves públicas; ejemplo sintético no utilizable.
+          items:
+            type: object
+            required: [kid, kty, alg]
+            properties:
+              kid: {type: string, description: Identificador de clave pública., examples: [clave-ficticia-006]}
+              kty: {type: string, description: Tipo JWK; OKP por defecto., examples: [OKP]}
+              alg: {type: string, description: Algoritmo de firma; EdDSA por defecto., examples: [EdDSA]}
+              crv: {type: string, description: Curva cuando procede., examples: [Ed25519]}
+              x: {type: string, description: Coordenada pública codificada; no material privado., examples: [AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA]}
+    Name: {type: string, minLength: 1, maxLength: 200, description: Nombre recortado en extremos; no vacío tras trim., examples: [Docente Ejemplo]}
+    InstitutionalEmail: {type: string, format: email, pattern: '\.[eE][dD][uU]\.[cC][oO]$', description: 'Correo válido cuyo dominio termina en .edu.co (normalizado a minúsculas tras validación). Ejemplo ficticio/no operativo, nunca destinatario real.', examples: [docente@ejemplo.edu.co]}
+    NewPassword: {type: string, minLength: 8, maxLength: 128, pattern: '^(?=.*[A-Z])(?=.*[a-z])(?=.*[0-9])[\s\S]+$', description: 'Mayúscula ASCII, minúscula ASCII y número obligatorios; solo ejemplo ficticio.', examples: [DemoFicticia123]}
+    VerificationToken: {type: string, minLength: 1, description: Token de verificación de un uso; no sesión. Marcador sintético sin vigencia., examples: [VERIFICACION_FICTICIA_NO_UTILIZABLE]}
+    AccountStatus: {type: string, enum: [PENDIENTE, ACTIVA, INACTIVA], description: Estado de cuenta., examples: [PENDIENTE]}
+    Role: {type: string, enum: [ADMIN, TEACHER], description: Rol actual del personal; no autorización declarada por cliente., examples: [TEACHER]}
+    Account:
+      type: object
+      required: [id, name, email, role, status, createdAt]
+      properties:
+        id: {type: string, format: uuid, description: Identificador de cuenta de negocio., examples: [00000000-0000-4000-8000-000000000001]}
+        name: {$ref: '#/components/schemas/Name'}
+        email: {$ref: '#/components/schemas/InstitutionalEmail'}
+        role: {$ref: '#/components/schemas/Role'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+        createdAt: {type: string, format: date-time, description: Fecha de creación., examples: ['2026-01-01T12:00:00.000Z']}
+        pendingEmail: {$ref: '#/components/schemas/InstitutionalEmail'}
+        deliveryStatus: {type: string, enum: [PENDIENTE, ENVIADA, ERROR], description: Estado de última invitación si existe; ENVIADA no garantiza lectura., examples: [PENDIENTE]}
+        invitationExpiresAt: {type: string, format: date-time, description: Vencimiento última invitación si existe., examples: ['2026-01-08T12:00:00.000Z']}
+    AccountPage:
+      type: object
+      required: [items, total, limit, offset]
+      properties:
+        items: {type: array, items: {$ref: '#/components/schemas/Account'}, description: Página de cuentas., examples: [[]]}
+        total: {type: integer, minimum: 0, description: Cantidad según filtro., examples: [0]}
+        limit: {type: integer, minimum: 1, maximum: 100, description: Tamaño solicitado o por defecto., examples: [20]}
+        offset: {type: integer, minimum: 0, description: Desplazamiento solicitado., examples: [0]}
+    Identity:
+      type: object
+      required: [id, email, name, role]
+      properties:
+        id: {type: string, description: Identidad Better Auth; no ID cuenta de negocio., examples: [identidad-ficticia-006]}
+        email: {type: string, format: email, description: Correo vigente de identidad., examples: [docente@ejemplo.edu.co]}
+        name: {type: string, description: Nombre filtrado., examples: [Docente Ejemplo]}
+        role: {$ref: '#/components/schemas/Role'}
+    SessionView:
+      type: object
+      required: [user, session]
+      properties:
+        user: {$ref: '#/components/schemas/Identity'}
+        session:
+          type: object
+          required: [id, expiresAt]
+          properties:
+            id: {type: string, description: 'ID interno, no credencial de sesión.', examples: [sesion-ficticia-006]}
+            expiresAt: {type: string, format: date-time, description: Expiración interna; inactividad puede vencer antes., examples: ['2026-01-01T12:30:00.000Z']}
+    Success: {type: object, required: [success], properties: {success: {type: boolean, const: true, description: Operación procesada satisfactoriamente., examples: [true]}}}
+    RoleRequest:
+      type: object
+      required: [id, requesterAccountId, status, requestedAt]
+      properties:
+        id: {type: string, format: uuid, description: ID de solicitud., examples: [00000000-0000-4000-8000-000000000003]}
+        requesterAccountId: {type: string, format: uuid, description: Cuenta solicitante., examples: [00000000-0000-4000-8000-000000000001]}
+        status: {type: string, enum: [PENDIENTE, APROBADA, RECHAZADA], description: Estado de decisión., examples: [PENDIENTE]}
+        requestedAt: {type: string, format: date-time, description: Fecha solicitud., examples: ['2026-01-01T12:00:00.000Z']}
+        decidedByAccountId: {type: string, format: uuid, description: Cuenta decisora cuando decidida., examples: [00000000-0000-4000-8000-000000000005]}
+        decidedAt: {type: string, format: date-time, description: Fecha decisión si existe., examples: ['2026-01-02T12:00:00.000Z']}
+    AuditSnapshot:
+      type: object
+      properties:
+        name: {$ref: '#/components/schemas/Name'}
+        email: {$ref: '#/components/schemas/InstitutionalEmail'}
+        role: {$ref: '#/components/schemas/Role'}
+        status: {$ref: '#/components/schemas/AccountStatus'}
+    AuditEvent:
+      type: object
+      required: [actorId, targetId, action, occurredAt]
+      properties:
+        actorId: {type: string, description: Identidad autora o marcador de sistema; no siempre UUID., examples: [system:email-verification]}
+        targetId: {type: string, format: uuid, description: Cuenta afectada., examples: [00000000-0000-4000-8000-000000000001]}
+        action: {type: string, enum: [BOOTSTRAP_ADMIN, INVITE, ACTIVATE, UPDATE, REQUEST_ADMIN, APPROVE_ADMIN, REJECT_ADMIN, ROLE_CHANGE, DEACTIVATE, REACTIVATE, REQUEST_EMAIL_CHANGE, CONFIRM_EMAIL_CHANGE, PASSWORD_RESET], description: Acción auditada de cuentas., examples: [INVITE]}
+        occurredAt: {type: string, format: date-time, description: Fecha de evento., examples: ['2026-01-01T12:00:00.000Z']}
+        before: {$ref: '#/components/schemas/AuditSnapshot'}
+        after: {$ref: '#/components/schemas/AuditSnapshot'}
+    StudentCode: {type: string, minLength: 1, maxLength: 50, pattern: '^[^\u0000]+$', description: 'Recortado en extremos, 1–50 puntos Unicode; conserva caso/acentos/ceros. Único global incluso inactivo.', examples: [SYN-006]}
+    StudentName: {type: string, minLength: 1, maxLength: 100, pattern: '^[^\u0000]+$', description: 'Nombre o apellido recortado, 1–100 puntos Unicode, sin NUL; ejemplo sintético.', examples: [Ficticio]}
+    Student:
+      type: object
+      additionalProperties: false
+      required: [id, groupId, studentCode, firstName, lastName, isActive]
+      properties:
+        id: {type: string, format: uuid, description: 'ID del registro, no identidad autenticable.', examples: [00000000-0000-4000-8000-000000000004]}
+        groupId: {type: string, format: uuid, description: Grupo propio asignado al docente., examples: [00000000-0000-4000-8000-000000000002]}
+        studentCode: {$ref: '#/components/schemas/StudentCode'}
+        firstName: {$ref: '#/components/schemas/StudentName'}
+        lastName: {$ref: '#/components/schemas/StudentName'}
+        isActive: {type: boolean, description: Alta false; esta API no dispone de activación., examples: [false]}
+    UserError:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, description: Código real según condición; no inferir estado de otras cuentas., examples: [INVALID_INPUT]}
+        message: {type: string, description: Mensaje seguro de error., examples: [Solicitud inválida]}
+        fields:
+          type: array
+          description: Diagnósticos de perfil solo cuando se proporcionan; no obligatorio.
+          items:
+            type: object
+            required: [field, reason]
+            properties:
+              field: {type: string, enum: [name, email, role, password], description: Campo de perfil., examples: [name]}
+              reason: {type: string, description: Motivo seguro sin reflejar datos ingresados., examples: [Ingrese un nombre completo no vacío]}
+    AcademicError:
+      type: object
+      required: [code, message]
+      properties:
+        code: {type: string, description: Código académico seguro., examples: [INVALID_INPUT]}
+        message: {type: string, description: Mensaje sin información de otros ámbitos., examples: [Datos inválidos]}
+        fields:
+          type: object
+          description: Objeto campo a motivo, no array; aparece solo cuando aplica.
+          additionalProperties: false
+          properties:
+            groupId: {$ref: '#/components/schemas/FieldReason'}
+            studentCode: {$ref: '#/components/schemas/FieldReason'}
+            firstName: {$ref: '#/components/schemas/FieldReason'}
+            lastName: {$ref: '#/components/schemas/FieldReason'}
+    FieldReason: {type: string, enum: [required, invalid_type, invalid_format, too_long], description: Motivo académico de campo permitido., examples: [required]}
+    ProviderError:
+      type: object
+      description: Respuesta delegada Better Auth; code puede faltar (por ejemplo rate limit).
+      properties:
+        code: {type: string, description: Código del proveedor cuando existe., examples: [INVALID_ORIGIN]}
+        message: {type: string, description: Mensaje delegado no normalizado., examples: [Invalid origin]}
+  responses:
+    AccountResult:
+      description: Representación actual de cuenta.
+      content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}
+    AccountCreated:
+      description: Cuenta pendiente e invitación persistidas; no credenciales de sesión.
+      content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}
+    RoleResult:
+      description: Solicitud creada/decidida según operación.
+      content: {application/json: {schema: {$ref: '#/components/schemas/RoleRequest'}}}
+    StudentResult:
+      description: Registro propio, solo seis campos públicos; no cuenta estudiantil.
+      content: {application/json: {schema: {$ref: '#/components/schemas/Student'}}}
+    BadInput:
+      description: 400 INVALID_INPUT; JSON/validación de entrada inválida. fields opcional solo cuando aplica.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: INVALID_INPUT, message: Solicitud inválida}}}
+    InvalidCredentials:
+      description: 401 INVALID_CREDENTIALS uniforme para contraseña/cuenta no utilizable.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: INVALID_CREDENTIALS, message: Credenciales inválidas}}}
+    Unauthenticated:
+      description: 401 UNAUTHENTICATED; sesión persistida ausente/vencida/revocada o actividad expirada.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: UNAUTHENTICATED, message: Sesión requerida}}}
+    Forbidden:
+      description: 403 FORBIDDEN; cuenta/identidad no habilitada o rol no permitido.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: FORBIDDEN, message: Acceso denegado}}}
+    NotFound:
+      description: 404 NOT_FOUND; cuenta/solicitud no encontrada o UUID de ruta inválido según mapper.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: NOT_FOUND, message: Recurso no encontrado}}}
+    Conflict:
+      description: >-
+        409: CONFLICT (duplicado/reserva/estado no modificable/solicitud decidida/identidad
+        desincronizada), LAST_ADMIN al retirar último ADMIN activo, ACCOUNT_CONFLICT al
+        aceptar invitación si la cuenta no puede activarse. Solo condiciones aplicables a operación.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: CONFLICT, message: El recurso ya existe}}}
+    InvitationExpired:
+      description: 410 INVITATION_EXPIRED; invitación vencida/usada/invalidada/no canjeable.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: INVITATION_EXPIRED, message: Invitación inválida o vencida}}}
+    EmailExpired:
+      description: 410 TOKEN_EXPIRED; confirmación vencida/usada/invalidada/no canjeable.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: TOKEN_EXPIRED, message: Verificación inválida o vencida}}}
+    Expired:
+      description: 410 VERIFICATION_EXPIRED; recuperación vencida/usada/invalidada/no canjeable.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: VERIFICATION_EXPIRED, message: Verificación inválida o vencida}}}
+    Unavailable:
+      description: >-
+        503 UNAVAILABLE ante fallo técnico verificable; operaciones de correo también
+        DELIVERY_FAILED o DELIVERY_STATUS_UNKNOWN. No garantiza rollback de efectos ya
+        persistidos ni que el correo no se haya entregado; reconciliar consultando estado.
+      content: {application/json: {schema: {$ref: '#/components/schemas/UserError'}, example: {code: UNAVAILABLE, message: Operación no confirmada}}}
+    AcademicBadInput:
+      description: 400 INVALID_INPUT; cuerpo/consulta no permitida o campos inválidos, tras guarda y ámbito cuando corresponda.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: INVALID_INPUT, message: Datos inválidos, fields: {firstName: required}}}}
+    AcademicUnauthenticated:
+      description: 401 UNAUTHENTICATED; sesión no utilizable.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: UNAUTHENTICATED, message: Sesión requerida}}}
+    AcademicForbidden:
+      description: 403 FORBIDDEN; cuenta/identidad no activa o rol distinto de TEACHER (incluido ADMIN).
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: FORBIDDEN, message: Acceso denegado}}}
+    AcademicNotFound:
+      description: 404 NOT_FOUND indistinguible para ID malformado/ajeno/ausente y grupo ajeno/ausente.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: NOT_FOUND, message: Recurso no encontrado}}}
+    AcademicConflict:
+      description: 409 CONFLICT por código global ya ocupado, incluido inactivo; no revela titular.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: CONFLICT, message: Código de estudiante no disponible}}}
+    AcademicUnavailable:
+      description: 503 UNAVAILABLE; fallo de verificación/persistencia, sin prometer acceso ni confirmar operación. Un fallo de red posterior a commit requiere reconciliar.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}, example: {code: UNAVAILABLE, message: Servicio no disponible}}}
+    ProviderForbidden:
+      description: 403 del proveedor por origen/CSRF, p.ej. INVALID_ORIGIN o MISSING_OR_NULL_ORIGIN.
+      content: {application/json: {schema: {$ref: '#/components/schemas/ProviderError'}, example: {code: INVALID_ORIGIN, message: Invalid origin}}}
+    RateLimit:
+      description: 429 solo cuando rate limiter Better Auth está habilitado (por defecto en producción); no normalizado por el envoltorio delegado.
+      headers:
+        X-Retry-After: {description: Segundos indicados por proveedor antes de reintentar., schema: {type: string, examples: ['60']}}
+      content: {application/json: {schema: {type: object, required: [message], properties: {message: {type: string, description: Mensaje de límite., examples: ['Too many requests. Please try again later.']}}}}}
+    ProviderFailure:
+      description: Fallo delegado del proveedor no normalizado; no garantizar 503 español ni cabeceras no-store no implementadas.
+      content:
+        application/json: {schema: {$ref: '#/components/schemas/ProviderError'}}
+        text/plain: {schema: {type: string, description: Error textual delegado., examples: [Internal Server Error]}}
