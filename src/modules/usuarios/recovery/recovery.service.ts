@@ -34,14 +34,14 @@ export async function requestRecovery(rawEmail: string) {
     await tx.update(passwordRecoveryVerifications).set({ invalidatedAt: createdAt })
       .where(and(eq(passwordRecoveryVerifications.accountId, account.id),
         isNull(passwordRecoveryVerifications.consumedAt), isNull(passwordRecoveryVerifications.invalidatedAt)));
-    await tx.insert(passwordRecoveryVerifications).values({ accountId: account.id, emailNormalized: email,
-      tokenDigest: digestToken(token), createdAt, expiresAt: new Date(createdAt.getTime() + RESET_TTL_MS) });
-    return { email, token };
+    const [verification] = await tx.insert(passwordRecoveryVerifications).values({ accountId: account.id, emailNormalized: email,
+      tokenDigest: digestToken(token), createdAt, expiresAt: new Date(createdAt.getTime() + RESET_TTL_MS) }).returning({ id: passwordRecoveryVerifications.id });
+    return { id: verification!.id, email, token };
   });
   if (issued) {
     const url = new URL(loadEnv().RESET_BASE_URL);
     url.searchParams.set('token', issued.token);
-    try { await makeMailer('Recuperar acceso a Kudlab')(issued.email, url.toString()); }
+    try { await makeMailer('password-recovery', issued.id)(issued.email, url.toString()); }
     catch { /* No revelar si la cuenta existe ni afirmar que se entregó el enlace. */ }
   }
 }

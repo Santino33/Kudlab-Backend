@@ -61,3 +61,7 @@ Los casos nuevos se incorporarán a los directorios ya descubiertos por Vitest. 
 ## Aceptación y límites
 
 SC-002–005 requieren matriz automatizada y revisión de logs; SC-001/006 requieren los ensayos anteriores. Un test SMTP local no prueba recepción externa. `verify()` puede ayudar a diagnosticar conexión/autenticación, pero no sustituye enviar al buzón ni prueba que se acepte un destinatario. No hay endpoint de envío de prueba ni reintentos automáticos.
+
+## Registro de implementación — fase 2 (2026-10-25)
+
+Prueba roja previa: `npm test -- tests/unit/mail-env.test.ts tests/unit/transactional-mail.test.ts` detectó 14 fallos de validación existentes y ausencia del nuevo módulo. Tras implementar: 36/36 pruebas pasan. Los emisores recibieron la adaptación mínima de propósito/ID real y URL de cambio para no duplicar transporte; el manejo explícito de resultados en servicios se completa en fases 3–4. No desplegar esa adaptación intermedia como aceptación completa.

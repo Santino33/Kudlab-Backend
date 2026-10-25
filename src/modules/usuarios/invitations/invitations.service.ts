@@ -26,7 +26,7 @@ export async function deliverInvitation(id: string, email: string, token: string
   const url = new URL(loadEnv().INVITATION_BASE_URL);
   url.searchParams.set('token', token);
   try {
-    await makeMailer()(email, url.toString());
+    await makeMailer('invitation', id)(email, url.toString());
   } catch {
     try {
       await db.update(invitations).set({ deliveryStatus: 'ERROR' }).where(eq(invitations.id, id));
