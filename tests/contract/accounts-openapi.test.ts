@@ -103,7 +103,7 @@ it('valida respuestas y errores HTTP contra los esquemas OpenAPI', async () => {
     await request(`${base}/${created.id}/deactivate`, 'POST', { confirm: true }, admin));
   await matchesContract(`${base}/{id}/reactivate`, 'post',
     await request(`${base}/${created.id}/reactivate`, 'POST', { confirm: true }, admin));
-  Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1',
+  Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: 'localhost', MAIL_PORT: '1',
     MAIL_USER: 'test', MAIL_PASSWORD: 'test', MAIL_FROM: 'noreply@pilot.edu.co' });
   try {
     const unavailable = await request(base, 'POST',

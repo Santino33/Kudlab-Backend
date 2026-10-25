@@ -69,3 +69,7 @@ Prueba roja previa: `npm test -- tests/unit/mail-env.test.ts tests/unit/transact
 ## Registro de implementación — fase 3 (2026-10-25)
 
 Base desechable exclusiva en el contenedor `kudlab-smtp-tests-20261025`, puerto local dinámico, migraciones existentes aplicadas. No se usaron bases previas ni envíos externos. Prueba roja: contrato unknown y cierre SMTP tras DATA devolvían DELIVERY_FAILED incorrectamente. Después de migrar el emisor: `npm test -- tests/contract/mail-invitation.test.ts tests/integration/account-invitation.test.ts tests/integration/accounts-convergence.test.ts tests/contract/accounts-create-list.test.ts` pasa 28/28 con DATABASE_URL de esa base; `npm run typecheck` pasa. Se verificó además el código originalCode de Nodemailer para no confundir conexión inicialmente rechazada con desconexión incierta.
+
+## Registro de implementación — fase 4 (2026-10-25)
+
+Prueba roja: cambio de correo unknown todavía devolvía DELIVERY_FAILED (dos casos). Tras manejar resultados explícitos, los contratos de mail-verifications, password-recovery, accounts-openapi y accounts-create-list, más integración mail-verifications y password-recovery pasan 30/30 sobre la base desechable. Se verificaron TLS SMTP real local para ambos propósitos, referencias existentes, acciones separadas, correo vigente conservado, rechazo sin permiso, verificación reutilizada/ajena al correo vigente y revocación de sesiones al recuperar. TypeScript pasa. Se retiró el adaptador de envío: solo queda reexportación de captura para compatibilidad de tests.

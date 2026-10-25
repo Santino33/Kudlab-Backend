@@ -78,7 +78,7 @@ describe('contrato de recuperación de acceso', () => {
   });
 
   it('una caída del correo no identifica si la cuenta existe ni crea acceso', async () => {
-    Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1',
+    Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: 'localhost', MAIL_PORT: '1',
       MAIL_USER: 'test', MAIL_PASSWORD: 'test', MAIL_FROM: 'noreply@pilot.edu.co' });
     try {
       const active = await matches('/api/v1/auth/password-recovery/request', await start('admin@pilot.edu.co'));
