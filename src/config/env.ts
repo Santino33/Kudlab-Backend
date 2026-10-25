@@ -5,8 +5,12 @@ const controls = /[\u0000-\u001f\u007f]/;
 const publicUrl = z.string().url().refine((value) => !controls.test(value) && value === value.trim());
 
 const url = z.string().url().refine((value) => {
-  const parsed = new URL(value);
-  return (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname))) && !parsed.username && !parsed.password && parsed.pathname === '/';
+  try {
+    const parsed = new URL(value);
+    return !controls.test(value) && value === value.trim() &&
+      (parsed.protocol === 'https:' || (parsed.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(parsed.hostname))) &&
+      !parsed.username && !parsed.password && !parsed.search && !parsed.hash && parsed.pathname === '/';
+  } catch { return false; }
 }, 'Debe ser un origen HTTPS (o localhost HTTP) sin ruta ni credenciales');
 
 const schema = z.object({
@@ -38,10 +42,12 @@ const schema = z.object({
     if (config.MAIL_USER && controls.test(config.MAIL_USER)) issue('MAIL_USER');
   }
   if (config.MAIL_FROM && controls.test(config.MAIL_FROM)) issue('MAIL_FROM');
+  let spaOrigin: string;
+  try { spaOrigin = new URL(config.SPA_ORIGIN).origin; } catch { return; } // The field schema already reports SPA_ORIGIN.
   for (const key of ['INVITATION_BASE_URL', 'EMAIL_CHANGE_BASE_URL', 'RESET_BASE_URL'] as const) {
     let target: URL;
     try { target = new URL(config[key]); } catch { issue(key); continue; }
-    if (target.origin !== new URL(config.SPA_ORIGIN).origin || target.username || target.password || target.search || target.hash ||
+    if (target.origin !== spaOrigin || target.username || target.password || target.search || target.hash ||
       !(target.protocol === 'https:' || (target.protocol === 'http:' && ['localhost', '127.0.0.1'].includes(target.hostname)))) issue(key);
   }
   if (config.INVITATION_BASE_URL === config.EMAIL_CHANGE_BASE_URL) issue('EMAIL_CHANGE_BASE_URL');

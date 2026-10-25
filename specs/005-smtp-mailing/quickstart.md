@@ -73,3 +73,7 @@ Base desechable exclusiva en el contenedor `kudlab-smtp-tests-20261025`, puerto 
 ## Registro de implementación — fase 4 (2026-10-25)
 
 Prueba roja: cambio de correo unknown todavía devolvía DELIVERY_FAILED (dos casos). Tras manejar resultados explícitos, los contratos de mail-verifications, password-recovery, accounts-openapi y accounts-create-list, más integración mail-verifications y password-recovery pasan 30/30 sobre la base desechable. Se verificaron TLS SMTP real local para ambos propósitos, referencias existentes, acciones separadas, correo vigente conservado, rechazo sin permiso, verificación reutilizada/ajena al correo vigente y revocación de sesiones al recuperar. TypeScript pasa. Se retiró el adaptador de envío: solo queda reexportación de captura para compatibilidad de tests.
+
+## Registro de implementación — fase 5 (2026-10-25)
+
+Matriz SMTP: STARTTLS y TLS implícito con confianza de CA solo en test pasan; ausencia de STARTTLS, CA no confiable, nombre incorrecto, auth/RCPT/DATA rechazados no generan aceptación falsa; cierre tras DATA produce unknown. Captura no crea transporte y sink de diagnóstico fallido no altera aceptación. Arranque inválido se detiene antes de acceder a base y arranque válido no verifica disponibilidad SMTP. Se reforzó redacción ante URLs completamente malformadas, incluidas las de origen. Las cinco suites de configuración/transporte/arranque/diagnóstico y cuatro suites de regresión US1/US2 pasan 82/82; `npm run typecheck` pasa. Ningún contacto con Gmail.

@@ -39,4 +39,9 @@ describe('mail configuration', () => {
     catch (error) { expect(String(error)).not.toContain(secret); expect(String(error)).toContain('MAIL_FROM'); return; }
     throw new Error('Invalid settings accepted');
   });
+  it.each(['SPA_ORIGIN', 'BETTER_AUTH_URL', 'INVITATION_BASE_URL', 'RESET_BASE_URL', 'EMAIL_CHANGE_BASE_URL'] as const)('never leaks malformed URL values in %s', (key) => {
+    try { loadEnv({ ...smtp(), [key]: 'PRIVATE-URL-SENTINEL' }); }
+    catch (error) { expect(String(error)).toContain(key); expect(String(error)).not.toContain('PRIVATE-URL-SENTINEL'); return; }
+    throw new Error('Invalid URL accepted');
+  });
 });
