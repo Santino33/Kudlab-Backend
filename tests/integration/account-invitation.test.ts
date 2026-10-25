@@ -1,11 +1,11 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { db } from '../../src/db/client.js';
 import { invitations } from '../../src/db/schema/accounts.js';
 import { eq, sql } from 'drizzle-orm';
 import { userAccounts } from '../../src/db/schema/accounts.js';
-import { SMTPServer } from 'smtp-server';
-import type { AddressInfo } from 'node:net';
+import nodemailer from 'nodemailer';
+import { startSmtp } from '../fixtures/smtp/server.js';
 import { login, request, reset } from '../helpers.js';
 
 describe('US1: unicidad y vigencia', () => {
@@ -48,7 +48,7 @@ describe('US1: unicidad y vigencia', () => {
   it('fallo SMTP conserva cuenta y entrega ERROR sin exponer secreto', async () => {
     const headers = await login();
     process.env.MAIL_MODE = 'smtp';
-    process.env.MAIL_HOST = '127.0.0.1';
+    process.env.MAIL_HOST = 'localhost';
     process.env.MAIL_PORT = '1';
     process.env.MAIL_USER = 'test';
     process.env.MAIL_PASSWORD = 'test';
@@ -68,30 +68,39 @@ describe('US1: unicidad y vigencia', () => {
     expect((await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' })).status).toBe(200);
   });
   it('marca ENVIADA únicamente si el servidor SMTP acepta el mensaje', async () => {
-    let delivered = '';
-    const server = new SMTPServer({ disabledCommands: ['STARTTLS'],
-      onAuth(auth, _session, callback) { callback(null, { user: auth.username }); },
-      onData(stream, _session, callback) {
-        stream.on('data', (chunk: Buffer) => { delivered += chunk.toString(); });
-        stream.on('end', () => callback());
-      },
-    });
-    await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const port = (server.server.address() as AddressInfo).port;
+    const server = await startSmtp();
     const admin = await login();
-    Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: String(port),
-      MAIL_USER: 'local-test', MAIL_PASSWORD: 'local-test', MAIL_FROM: 'noreply@pilot.edu.co' });
+    const createTransport = nodemailer.createTransport.bind(nodemailer);
+    vi.spyOn(nodemailer, 'createTransport').mockImplementation((options) => createTransport(server.trust(options)));
+    for (const [key, value] of Object.entries(server.env)) vi.stubEnv(key, value);
     try {
       const response = await request('/api/v1/accounts', 'POST', { name: 'Docente', email: 'smtp@pilot.edu.co', role: 'TEACHER' }, admin);
       expect(response.status).toBe(201);
       expect((await response.json()).deliveryStatus).toBe('ENVIADA');
-      expect(delivered).toContain('smtp@pilot.edu.co');
+      expect(server.messages).toHaveLength(1);
+      expect(server.messages[0]).toContain('smtp@pilot.edu.co');
+      expect(server.messages[0]).toContain('Activa tu cuenta de Kudlab');
     } finally {
-      process.env.MAIL_MODE = 'capture';
-      delete process.env.MAIL_HOST; delete process.env.MAIL_PORT; delete process.env.MAIL_USER;
-      delete process.env.MAIL_PASSWORD; delete process.env.MAIL_FROM;
-      server.close();
+      vi.restoreAllMocks(); vi.unstubAllEnvs(); await server.close();
     }
+  });
+  it.each(['disconnect-data', 'no-starttls', 'reject-recipient'] as const)('SMTP %s preserves honest status without retry', async (mode) => {
+    const admin = await login();
+    const server = await startSmtp(mode);
+    const createTransport = nodemailer.createTransport.bind(nodemailer);
+    vi.spyOn(nodemailer, 'createTransport').mockImplementation((options) => createTransport(server.trust(options)));
+    for (const [key, value] of Object.entries(server.env)) vi.stubEnv(key, value);
+    try {
+      const result = await request('/api/v1/accounts', 'POST', { name: 'Fictitious', email: 'uncertain@pilot.edu.co', role: 'TEACHER' }, admin);
+      expect(result.status).toBe(503);
+      expect((await result.json()).code).toBe(mode === 'disconnect-data' ? 'DELIVERY_STATUS_UNKNOWN' : 'DELIVERY_FAILED');
+      const list = await (await request('/api/v1/accounts', 'GET', undefined, admin)).json();
+      expect(list.items.filter((x: { email: string }) => x.email === 'uncertain@pilot.edu.co')).toMatchObject([
+        { status: 'PENDIENTE', deliveryStatus: mode === 'disconnect-data' ? 'PENDIENTE' : 'ERROR' },
+      ]);
+      expect(server.attempts).toBe(1);
+      expect(server.messages).toHaveLength(mode === 'disconnect-data' ? 1 : 0);
+    } finally { vi.restoreAllMocks(); vi.unstubAllEnvs(); await server.close(); }
   });
   it('correo de cuenta inactiva no se reutiliza y token ajeno no activa', async () => {
     const headers = await login();

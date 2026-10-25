@@ -37,9 +37,9 @@ function failure(error: unknown): MailOutcome {
   }
   // These codes prove a failure before message transmission. Generic socket/CONN errors do NOT.
   if (e.code === 'EDNS') return { outcome: 'rejected', category: 'dns' };
-  if (e.code === 'ECONNREFUSED' || (e.code === 'ESOCKET' && e.errno === 'ECONNREFUSED')) return { outcome: 'rejected', category: 'connection' };
+  if (e.code === 'ECONNREFUSED' || (e.code === 'ESOCKET' && e.originalCode === 'ECONNREFUSED')) return { outcome: 'rejected', category: 'connection' };
   if (e.code === 'ETLS' || ['CERT_HAS_EXPIRED', 'DEPTH_ZERO_SELF_SIGNED_CERT', 'SELF_SIGNED_CERT_IN_CHAIN',
-    'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'].includes(String(e.code)))
+    'ERR_TLS_CERT_ALTNAME_INVALID', 'UNABLE_TO_VERIFY_LEAF_SIGNATURE', 'UNABLE_TO_GET_ISSUER_CERT_LOCALLY'].some((code) => e.code === code || e.originalCode === code))
     return { outcome: 'rejected', category: 'tls' };
   return { outcome: 'unknown', category: e.code === 'ETIMEDOUT' ? 'timeout' : 'network' };
 }

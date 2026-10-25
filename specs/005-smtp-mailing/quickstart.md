@@ -65,3 +65,7 @@ SC-002–005 requieren matriz automatizada y revisión de logs; SC-001/006 requi
 ## Registro de implementación — fase 2 (2026-10-25)
 
 Prueba roja previa: `npm test -- tests/unit/mail-env.test.ts tests/unit/transactional-mail.test.ts` detectó 14 fallos de validación existentes y ausencia del nuevo módulo. Tras implementar: 36/36 pruebas pasan. Los emisores recibieron la adaptación mínima de propósito/ID real y URL de cambio para no duplicar transporte; el manejo explícito de resultados en servicios se completa en fases 3–4. No desplegar esa adaptación intermedia como aceptación completa.
+
+## Registro de implementación — fase 3 (2026-10-25)
+
+Base desechable exclusiva en el contenedor `kudlab-smtp-tests-20261025`, puerto local dinámico, migraciones existentes aplicadas. No se usaron bases previas ni envíos externos. Prueba roja: contrato unknown y cierre SMTP tras DATA devolvían DELIVERY_FAILED incorrectamente. Después de migrar el emisor: `npm test -- tests/contract/mail-invitation.test.ts tests/integration/account-invitation.test.ts tests/integration/accounts-convergence.test.ts tests/contract/accounts-create-list.test.ts` pasa 28/28 con DATABASE_URL de esa base; `npm run typecheck` pasa. Se verificó además el código originalCode de Nodemailer para no confundir conexión inicialmente rechazada con desconexión incierta.

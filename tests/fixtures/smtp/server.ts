@@ -36,8 +36,10 @@ export async function startSmtp(mode: Mode = 'accept', implicit = false) {
   return { messages, get attempts() { return attempts; },
     env: { MAIL_MODE: 'smtp', MAIL_HOST: 'localhost', MAIL_PORT: String(port), MAIL_USER: 'local-test',
       MAIL_PASSWORD: 'local-test', MAIL_FROM: 'noreply@pilot.edu.co' },
-    trust: (options: SMTPTransport.Options): SMTPTransport.Options => ({ ...options, secure: implicit,
-      tls: { ...options.tls, ca: testCA, servername: 'localhost' } }),
+    trust: (input: unknown): SMTPTransport.Options => {
+      const options = input as SMTPTransport.Options;
+      return { ...options, secure: implicit, tls: { ...options.tls, ca: testCA, servername: 'localhost' } };
+    },
     close: async () => { for (const socket of sockets) socket.destroy(); await new Promise<void>((resolve) => server.close(() => resolve())); },
   };
 }
