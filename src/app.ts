@@ -16,6 +16,9 @@ import { z } from 'zod';
 import { studentsRoutes } from './modules/academico/students/students.routes.js';
 import { requireTeacher } from './modules/academico/shared/academic-auth.js';
 import { createDocumentationRoutes } from './docs/documentation.routes.js';
+import { db } from './db/client.js';
+import { session } from './db/schema/auth.js';
+import { and, eq } from 'drizzle-orm';
 
 export const app = new Hono<AuthVariables>();
 const env = loadEnv();
@@ -47,12 +50,13 @@ app.all('/api/auth/*', async (c) => {
   }
   if (c.req.method === 'GET' && path === '/get-session') {
     try {
-      const current = await auth.api.getSession({ headers: c.req.raw.headers });
+      const { response: current, headers } = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
       if (!current?.user || !current.session) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
       const active = await resolveActiveIdentity(current.user.id);
       if (!active) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
       if (!await checkSessionActivity(current.session.id, current.user.id))
         return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
+      for (const cookie of headers.getSetCookie()) c.header('Set-Cookie', cookie, { append: true });
       return c.json({ user: { id: active.identity.id, email: active.identity.email, name: active.identity.name,
         role: active.account.role }, session: { id: current.session.id, expiresAt: current.session.expiresAt } });
     } catch { return c.json({ code: 'UNAVAILABLE', message: 'Operación no confirmada' }, 503); }
@@ -66,7 +70,11 @@ app.all('/api/auth/*', async (c) => {
       const headers = new Headers(c.req.raw.headers);
       headers.set('content-type', 'application/json');
       headers.delete('content-length');
-      return auth.handler(new Request(c.req.raw.url, { method: 'POST', headers, body: '{}' }));
+      const response = await auth.handler(new Request(c.req.raw.url, { method: 'POST', headers, body: '{}' }));
+      if (!response.ok) return response;
+      // The provider may swallow deletion failures; confirm revocation before forwarding success/cookies.
+      await db.delete(session).where(and(eq(session.id, current.session.id), eq(session.userId, current.user.id)));
+      return response;
     } catch { return c.json({ code: 'UNAVAILABLE', message: 'Operación no confirmada' }, 503); }
   }
   if (c.req.method === 'GET' && path === '/token') {

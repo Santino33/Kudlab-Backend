@@ -8,6 +8,16 @@ La guarda [requireActive](../../../../../src/auth/session-guard.ts) resuelve **s
 
 ## Contratos y pruebas
 
+P-01/P-02 incorporados en la rama de catálogo con autorización del responsable
+(2026-10-26), desde los cambios locales de `fix/session-cookie-guarantees-restored`.
+El cierre espera al proveedor y confirma la eliminación persistida antes del éxito;
+un fallo devuelve 503 sin cookies de cierre, sin prometer rollback. Nunca se borra
+antes de los controles de origen/CSRF del proveedor. Consulta y guarda propagan
+Set-Cookie tras validar acceso, sin JWT/set-auth-token ni actividad por consultar sesión.
+Ver `tests/integration/frontend-auth-validation.test.ts`: 8 casos revalidados sobre
+base `c3cd581`, junto a contratos/fronteras (21/21), tipos y docs (22/22).
+No acredita despliegue HTTPS ni merge a main.
+
 Ver [contrato auth](../../../../../specs/003-autenticar-usuarios/contracts/auth.openapi.yaml), [pruebas de integración](../../../../../tests/integration/authentication.test.ts), [fronteras](../../../../../tests/integration/auth-boundaries.test.ts) y [actividad](../../../../../tests/unit/session-activity.test.ts). Probar cuenta pendiente/inactiva, credencial inválida, expiración/revocación, JWT aislado y fallo de dependencia. Recuperación por correo tiene [flujo propio](flujos-complementarios.md), no un login de estudiante.
 
 ## Antecedente original (JWT/Google son propuestas, no comportamiento vigente)

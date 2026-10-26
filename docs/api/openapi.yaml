@@ -65,12 +65,19 @@ paths:
     get:
       operationId: getSession
       summary: Consultar sesión propia
-      description: Revalida identidad/cuenta y actividad. No renueva actividad protegida ni reenvía set-auth-jwt del proveedor.
+      description: >-
+        Revalida identidad/cuenta y actividad. Tras validar, propaga por separado las
+        Set-Cookie de renovación del proveedor, sin reenviar set-auth-jwt ni set-auth-token.
+        No renueva actividad protegida ni reabre sesiones que alcanzaron 30 minutos
+        de inactividad. La preparación de las rutas protegidas usa la misma propagación;
+        una denegación posterior no registra actividad aceptada.
       tags: [Acceso]
       security: &session [{sessionCookie: []}, {secureSessionCookie: []}, {sessionBearer: []}]
       responses:
         '200':
           description: Sesión propia vigente, sin credencial opaca.
+          headers:
+            Set-Cookie: {$ref: '#/components/headers/SessionCookie'}
           content: {application/json: {schema: {$ref: '#/components/schemas/SessionView'}}}
         '401': {$ref: '#/components/responses/Unauthenticated'}
         '503': {$ref: '#/components/responses/Unavailable'}
@@ -82,13 +89,15 @@ paths:
         Sin cuerpo requerido; el adaptador ignora cualquier cuerpo recibido y pasa {} al proveedor.
         No admite opciones de callback o redirección. Invalida solo sesión presentada y expira cookies.
         Con cookie se aplican controles de origen/CSRF del proveedor; respetar trustedOrigins.
-        El proveedor captura ciertos fallos de borrado y puede responder éxito; no se garantiza 503
-        para todo fallo interno. No se restauran sesiones cerradas.
+        Solo después de que el proveedor acepte, el adaptador confirma la eliminación
+        persistida por id de sesión e identidad antes de reenviar éxito y cookies expiradas.
+        Si no puede confirmar esa revocación, devuelve 503 sin cookies de cierre;
+        algún efecto previo puede haber ocurrido. No se restauran sesiones cerradas.
       tags: [Acceso]
       security: *session
       responses:
         '200':
-          description: Cierre procesado; descartar la credencial local.
+          description: Revocación persistida confirmada de la sesión presentada; descartar la credencial local.
           headers:
             Set-Cookie:
               description: Una o varias cookies expiradas (session_token/dont_remember y auxiliares); Max-Age=0. No nueva credencial.
