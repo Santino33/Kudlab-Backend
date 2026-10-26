@@ -33,6 +33,11 @@ describe('strict local SMTP transport', () => {
       expect(server.attempts).toBeLessThanOrEqual(1);
       const transmitted = mode === 'accept' && trusted && !wrongName || mode === 'reject-data' || mode === 'disconnect-data';
       expect(server.messages).toHaveLength(transmitted ? 1 : 0);
+      if (expected === 'accepted') {
+        expect(server.messages[0]).toContain('Content-Type: multipart/alternative');
+        expect(server.messages[0]).toContain('Content-Type: text/plain; charset=utf-8');
+        expect(server.messages[0]).toContain('Content-Type: text/html; charset=utf-8');
+      }
       expect(nodemailer.createTransport).toHaveBeenCalledOnce();
     } finally { await server.close(); }
   });

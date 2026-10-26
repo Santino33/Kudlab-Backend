@@ -27,10 +27,12 @@ describe('transactional mail', () => {
     expect(capturedMail[0]).toMatchObject({ ...input, subject, from: { name: 'Kudlab', address: expect.any(String) } });
     expect(capturedMail[0]!.text).toContain(input.url);
     expect(capturedMail[0]!.text).toContain('ignora');
+    expect(capturedMail[0]!.html).toContain('Kudlab');
+    expect(capturedMail[0]!.html).toContain(`href="${input.url}"`);
     expect(nodemailer.createTransport).not.toHaveBeenCalled();
   });
   it('requires a real UUID and a single institutional mailbox without controls', async () => {
-    for (const changes of [{ operationId: 'token' }, { to: 'a@pilot.edu.co,b@pilot.edu.co' }, { to: 'a@pilot.edu.co\r\nBcc:x@y.edu.co' },
+    for (const changes of [{ operationId: 'token' }, { to: 'invalid-mailbox' }, { to: 'a@pilot.edu.co,b@pilot.edu.co' }, { to: 'a@pilot.edu.co\r\nBcc:x@y.edu.co' },
       { to: 'a@pilot.edu.co\0' }, { purpose: 'marketing' }, { url: 'https://evil.example/?token=x' },
       { url: 'http://localhost:5173/reset-password?token=x' }, { url: 'http://localhost:5173/accept?token=x&other=1' }]) {
       const result = await sendTransactionalMail(request(changes as Partial<MailRequest>));
@@ -46,11 +48,19 @@ describe('transactional mail', () => {
       greetingTimeout: 30000, socketTimeout: 600000, tls: { minVersion: 'TLSv1.2', rejectUnauthorized: true },
       disableFileAccess: true, disableUrlAccess: true }));
     expect(sendMail).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ to: { address: 'teacher@pilot.edu.co', name: '' },
-      envelope: { from: 'sender@gmail.com', to: ['teacher@pilot.edu.co'] }, from: { name: 'Kudlab', address: 'sender@gmail.com' } }));
+      envelope: { from: 'sender@gmail.com', to: ['teacher@pilot.edu.co'] }, from: { name: 'Kudlab', address: 'sender@gmail.com' },
+      text: expect.stringContaining('Kudlab'), html: expect.stringContaining('Activar mi cuenta') }));
   });
   it('selects implicit TLS for 465', async () => {
     smtp(); vi.stubEnv('MAIL_PORT', '465'); stubTransport(); await sendTransactionalMail(request());
     expect(nodemailer.createTransport).toHaveBeenCalledWith(expect.objectContaining({ secure: true }));
+  });
+  it('cleanup failure cannot turn confirmed SMTP acceptance into a send failure', async () => {
+    smtp(); const sendMail = vi.fn().mockResolvedValue({ accepted: ['teacher@pilot.edu.co'], rejected: [] });
+    vi.spyOn(nodemailer, 'createTransport').mockReturnValue({ sendMail,
+      close: () => { throw new Error('PRIVATE-CLEANUP-ERROR'); } } as unknown as ReturnType<typeof nodemailer.createTransport>);
+    expect(await sendTransactionalMail(request())).toEqual({ outcome: 'accepted' });
+    expect(sendMail).toHaveBeenCalledOnce();
   });
   it.each([
     [{ accepted: ['teacher@pilot.edu.co'], rejected: [] }, 'accepted'],

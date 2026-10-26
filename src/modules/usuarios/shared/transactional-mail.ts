@@ -1,6 +1,7 @@
 import nodemailer from 'nodemailer';
 import { z } from 'zod';
 import { loadEnv } from '../../../config/env.js';
+import { renderTransactionalMail } from './transactional-mail.template.js';
 
 const purposeSchema = z.enum(['invitation', 'email-change', 'password-recovery']);
 export type MailPurpose = z.infer<typeof purposeSchema>;
@@ -10,14 +11,9 @@ export type MailOutcome = { outcome: 'accepted' | 'rejected' | 'unknown'; catego
 export type MailRequest = { purpose: MailPurpose; operationId: string; to: string; url: string };
 const controls = /[\u0000-\u001f\u007f]/;
 const inputSchema = z.object({ purpose: purposeSchema, operationId: z.uuid(),
-  to: z.email().refine((v) => !controls.test(v) && v.split('@')[1]!.toLowerCase().endsWith('.edu.co')),
+  to: z.email().refine((v) => !controls.test(v) && v.split('@')[1]?.toLowerCase().endsWith('.edu.co') === true),
   url: z.string().url().refine((v) => !controls.test(v)) });
-const content = {
-  invitation: { subject: 'Activa tu cuenta de Kudlab', action: 'Para activar tu cuenta, abre este enlace y establece tu contraseña.' },
-  'email-change': { subject: 'Confirma tu cambio de correo en Kudlab', action: 'Para confirmar tu nuevo correo, abre este enlace.' },
-  'password-recovery': { subject: 'Recupera tu acceso a Kudlab', action: 'Para recuperar tu acceso, abre este enlace y establece una nueva contraseña.' },
-} as const;
-export const capturedMail: (MailRequest & { from: { name: string; address: string }; subject: string; text: string })[] = [];
+export const capturedMail: (MailRequest & { from: { name: string; address: string }; subject: string; text: string; html: string })[] = [];
 
 export function recordMailDiagnostic(request: Pick<MailRequest, 'purpose' | 'operationId'>, result: MailOutcome) {
   // Construct an allowlist; never serialize provider error/info, addresses or message content.
@@ -66,8 +62,7 @@ export async function sendTransactionalMail(input: MailRequest): Promise<MailOut
     recordMailDiagnostic(request, result); return result;
   }
   const message = { ...request, from: { name: 'Kudlab', address: env.MAIL_FROM ?? 'test-only@pilot.edu.co' },
-    subject: content[request.purpose].subject,
-    text: `Kudlab\n\n${content[request.purpose].action}\n${request.url}\n\nSi no reconoces esta solicitud, ignora este mensaje.` };
+    ...renderTransactionalMail(request.purpose, request.url) };
   let result: MailOutcome;
   if (env.MAIL_MODE === 'capture') {
     capturedMail.push(message); result = { outcome: 'accepted' };
@@ -79,13 +74,15 @@ export async function sendTransactionalMail(input: MailRequest): Promise<MailOut
       logger: false, debug: false, transactionLog: false, disableFileAccess: true, disableUrlAccess: true });
     try {
       const info = await transport.sendMail({ from: message.from, to: { name: '', address: request.to }, subject: message.subject,
-        text: message.text, envelope: { from: message.from.address, to: [request.to] } });
+        text: message.text, html: message.html, envelope: { from: message.from.address, to: [request.to] } });
       const accepted = info.accepted?.includes(request.to) === true;
       const rejected = info.rejected?.includes(request.to) === true;
       result = accepted && !rejected ? { outcome: 'accepted' } : rejected && !accepted ? { outcome: 'rejected', category: 'recipient' } :
         { outcome: 'unknown', category: 'inconsistent' };
     } catch (error) { result = failure(error); }
-    finally { transport.close(); }
+    finally {
+      try { transport.close(); } catch { /* Cleanup cannot undo SMTP evidence or trigger another send. */ }
+    }
   }
   recordMailDiagnostic(request, result);
   return result;
