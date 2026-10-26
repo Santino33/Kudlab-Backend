@@ -69,6 +69,12 @@ Identificadores estables propuestos para el YAML canónico. Seguridad `sessionCo
 | `getStudent` | GET `/api/v1/students/{id}` | TEACHER activo y estudiante propio |
 | `updateStudent` | PATCH `/api/v1/students/{id}` | TEACHER activo y estudiante propio |
 | `deactivateStudent` | POST `/api/v1/students/{id}/deactivate` | TEACHER activo y estudiante propio |
+| `listTasks` | GET `/api/v1/tasks` | TEACHER o ADMIN activo |
+| `getTask` | GET `/api/v1/tasks/{taskId}` | TEACHER o ADMIN activo |
+
+Actualización vertical 01 (2026-10-26): 28 operaciones/8 tags con consulta de
+catálogo y ficha. Las menciones de 26 operaciones anteriores describen la base 006;
+no se añade CRUD, ejecución, recursos ni asignaciones de Tareas.
 
 No documentar como disponibles registro público, operaciones administrativas del plugin, Google, login de estudiante, CRUD de grupos o tareas. El rechazo de otras rutas `/api/auth/*` es una limitación explicada, no una operación positiva del contrato.
 

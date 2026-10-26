@@ -13,11 +13,11 @@ beforeEach(reset);
 it('contrasta igualdad con montajes reales y lista blanca auth', () => {
   const allowed = ['post /api/auth/sign-in/email', 'post /api/auth/sign-out', 'get /api/auth/get-session', 'get /api/auth/jwks', 'get /api/auth/token'];
   const mounted = app.routes.filter((r) => r.method !== 'ALL' && r.path.startsWith('/api/v1/'))
-    .map((r) => `${r.method.toLowerCase()} ${r.path.replace(/:id\b/g, '{id}').replace(/\/$/, '')}`);
+    .map((r) => `${r.method.toLowerCase()} ${r.path.replace(/:(\w+)/g, '{$1}').replace(/\/$/, '')}`);
   expect(operations(spec()).map(([p, m]) => `${m} ${p}`).sort()).toEqual([...new Set([...mounted, ...allowed])].sort());
 });
 
-it('valida éxitos de las 26 operaciones y errores de cada dominio contra el catálogo canónico', async () => {
+it('valida éxitos de todas las operaciones y errores de cada dominio contra el catálogo canónico', async () => {
   const doc = spec();
   const successes = new Set<string>();
   async function check(path: string, method: string, response: Response, status: number) {
@@ -29,6 +29,8 @@ it('valida éxitos de las 26 operaciones y errores de cada dominio contra el cat
   expect(signIn.headers.get('set-auth-token')).toBeTruthy();
   await check('/api/auth/sign-in/email', 'POST', signIn, 200);
   const admin = await login();
+  await check('/api/v1/tasks', 'GET', await request('/api/v1/tasks', 'GET', undefined, admin), 200);
+  await check('/api/v1/tasks/{taskId}', 'GET', await request('/api/v1/tasks/TG-01', 'GET', undefined, admin), 200);
   for (const path of ['/api/auth/get-session', '/api/auth/jwks', '/api/auth/token'])
     await check(path, 'GET', await request(path, 'GET', undefined, admin), 200);
   const base = '/api/v1/accounts';
@@ -96,7 +98,7 @@ it('valida fallos de sesión, rol, ámbito, entradas y tokens sin revelar datos 
     return assertResponse(doc, path, method, response);
   };
   for (const [path, method, op] of operations(doc)) {
-    const concrete = path.replace('{id}', randomUUID());
+    const concrete = path.replace('{id}', randomUUID()).replace('{taskId}', 'TG-01');
     if (op.security.length) await check(path, method, await request(concrete, method.toUpperCase()), 401);
     else if (method === 'post') {
       await check(path, method, await request(concrete, 'POST', {}), 400);
@@ -152,7 +154,7 @@ it('verifica cookies HTTPS, CSRF y rate limit del proveedor fuera del modo test 
     } finally {await pool.end();}
   `], { cwd: new URL('../../', import.meta.url), encoding: 'utf8', timeout: 20000,
     env: { ...process.env, NODE_ENV: 'production', TEST: '', BETTER_AUTH_URL: 'https://localhost:3000',
-      MAIL_MODE: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_USER: 'synthetic', MAIL_PASSWORD: 'synthetic', MAIL_FROM: 'no-send@ejemplo.edu.co' } });
+      MAIL_MODE: 'smtp', MAIL_HOST: 'localhost', MAIL_USER: 'synthetic', MAIL_PASSWORD: 'synthetic', MAIL_FROM: 'no-send@ejemplo.edu.co' } });
   const result = JSON.parse(output.trim().split('\n').at(-1)!);
   const cookie = result.cookies.find((c: string) => c.startsWith('__Secure-better-auth.session_token='));
   expect(cookie).toContain('Secure');

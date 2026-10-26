@@ -19,6 +19,7 @@ import { createDocumentationRoutes } from './docs/documentation.routes.js';
 import { db } from './db/client.js';
 import { session } from './db/schema/auth.js';
 import { and, eq } from 'drizzle-orm';
+import { catalogRoutes } from './modules/tareas/catalog/catalog.routes.js';
 
 export const app = new Hono<AuthVariables>();
 const env = loadEnv();
@@ -101,5 +102,10 @@ app.route('/api/v1/auth/password-recovery', recoveryRoutes);
 app.use('/api/v1/students', requireTeacher);
 app.use('/api/v1/students/*', requireTeacher);
 app.route('/api/v1/students', studentsRoutes);
+app.use('/api/v1/tasks', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
+app.use('/api/v1/tasks/*', async (c, next) => { c.header('Cache-Control', 'no-store'); await next(); });
+app.use('/api/v1/tasks', requireActive);
+app.use('/api/v1/tasks/*', requireActive);
+app.route('/api/v1/tasks', catalogRoutes);
 app.route('/', createDocumentationRoutes());
 app.onError((error, c) => fail(c, error));

@@ -2,6 +2,13 @@
 
 ## Responsabilidad del backend
 
+**Actualización vertical 01 (2026-10-26):** consulta de catálogo/ficha implementada
+en esta rama: `/api/v1/tasks` y `/api/v1/tasks/:taskId`, para ADMIN/TEACHER activos.
+Solo TG-01 en el catálogo inicial; integración no comprobada y segundo juego sin
+definir. TG-00/TG-06 son apoyos no independientes. El diseño histórico inferior no
+amplía el alcance a todos los TG. Ver [contrato, fuentes y evidencia](../../../feature-specs/tareas/01-catalogo-y-ficha.md).
+No hay recursos/configuración editable, asignación, ejecución ni métricas.
+
 **Diseño, sin módulo implementado en esta base.** Es la frontera del ciclo operativo de juegos: registrar/gestionar actividades del banco fijo, configuración/versiones y disponibilidad, asignar, autorizar/controlar intentos y sesiones, recibir y conservar evidencia, progreso e incidencias. Registrar una actividad no autoriza crear o borrar mecánicas nuevas fuera de TG-00…06.
 
 Los estudiantes ejecutan en **otro servicio**. Las fichas TG describen lo que sucede allí para entender qué datos necesita la API; no implementar aquí instrucciones, animaciones, botones, captura temporal ni almacenamiento del navegador. Usuarios gestiona solo el acceso de profesores.

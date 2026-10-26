@@ -6,7 +6,8 @@ info:
     Catálogo contrastado con src/app.ts y sus routers. Usuarios del personal y cinco
     operaciones sobre registros de estudiantes realizadas por profesores TEACHER
     en su ámbito propio. Los estudiantes no acceden ni tienen cuentas aquí.
-    No incluye grupos, tareas, juegos, consentimiento, registro público ni Google.
+    Incluye consulta docente del catálogo y fichas de tareas; no ejecución de juegos.
+    No incluye grupos HTTP, consentimiento, registro público ni Google.
     Los contratos históricos propuestos no acreditan disponibilidad.
     Todos los ejemplos son ficticios/no operativos: no enviar correo a sus direcciones
     ni utilizar sus contraseñas o marcadores como credenciales reales.
@@ -23,6 +24,7 @@ tags:
   - {name: SolicitudesRol, description: Ascenso solicitado por TEACHER y decidido por ADMIN.}
   - {name: Recuperacion, description: Recuperación neutra y confirmación sin login automático.}
   - {name: Estudiantes, description: Registros gestionados por TEACHER en grupos propios; ADMIN no tiene acceso implícito.}
+  - {name: Tareas, description: Consulta del catálogo por TEACHER y ADMIN activos; no ejecución ni asignación.}
 paths:
   /api/auth/sign-in/email:
     post:
@@ -556,6 +558,63 @@ paths:
         '403': {$ref: '#/components/responses/AcademicForbidden'}
         '404': {$ref: '#/components/responses/AcademicNotFound'}
         '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/tasks:
+    get:
+      operationId: listTasks
+      summary: Consultar catálogo de juegos
+      tags: [Tareas]
+      security: *session
+      description: >-
+        Sin parámetros de consulta; cualquiera produce 400. Solo juegos explícitos
+        en alcance, inicialmente TG-01. Habilitación administrativa no prueba integración
+        ni publicación. Las razones no tienen prioridad contractual. No hay juego recibido
+        y validado, por lo que integrationReady es false en esta entrega.
+      responses:
+        '200':
+          description: Catálogo persistido, posiblemente vacío; nunca vacío por fallo DB.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                required: [items]
+                properties:
+                  items: {type: array, items: {$ref: '#/components/schemas/TaskSummary'}}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/tasks/{taskId}:
+    get:
+      operationId: getTask
+      summary: Consultar ficha de juego
+      tags: [Tareas]
+      security: *session
+      description: >-
+        Mismos controles que catálogo y Cache-Control no-store, incluso en errores.
+        Código mal formado o query desconocida produce 400; código válido inexistente
+        o fuera del catálogo produce 404. Solo metadatos, sin banco/soluciones/keys.
+      parameters:
+        - name: taskId
+          in: path
+          required: true
+          schema: {type: string, pattern: '^TG-[0-9]{2}$'}
+          example: TG-01
+      responses:
+        '200':
+          description: Ficha consultable aunque no sea asignable.
+          headers:
+            Cache-Control: {schema: {type: string, const: no-store}}
+          content:
+            application/json:
+              schema: {$ref: '#/components/schemas/TaskDetail'}
+        '400': {$ref: '#/components/responses/BadInput'}
+        '401': {$ref: '#/components/responses/Unauthenticated'}
+        '403': {$ref: '#/components/responses/Forbidden'}
+        '404': {$ref: '#/components/responses/NotFound'}
+        '503': {$ref: '#/components/responses/Unavailable'}
 components:
   securitySchemes:
     sessionCookie:
@@ -588,6 +647,47 @@ components:
       required: true
       content: {application/json: {schema: {type: object, additionalProperties: false, required: [confirm], properties: {confirm: {type: boolean, const: true, description: Confirmación explícita de transición., examples: [true]}}}}}
   schemas:
+    TaskSummary:
+      type: object
+      additionalProperties: false
+      required: [id, title, description, isEnabled, integrationReady, publishedVersion, assignable, unavailableReasons, revision]
+      properties:
+        id: {type: string, pattern: '^TG-[0-9]{2}$', examples: [TG-01]}
+        title: {type: string, minLength: 1}
+        description: {type: string, minLength: 1}
+        isEnabled: {type: boolean}
+        integrationReady: {type: boolean}
+        publishedVersion:
+          oneOf:
+            - type: 'null'
+            - type: object
+              additionalProperties: false
+              required: [id, version]
+              properties:
+                id: {type: string, format: uuid}
+                version: {type: integer, minimum: 1}
+        assignable: {type: boolean, description: Calculado en servidor; requiere habilitación, integración comprobada y versión publicada.}
+        unavailableReasons:
+          type: array
+          uniqueItems: true
+          items: {type: string, enum: [INTEGRATION_PENDING, CONFIGURATION_UNPUBLISHED, TASK_DISABLED]}
+        revision: {type: integer, minimum: 1}
+    TaskDetail:
+      type: object
+      additionalProperties: false
+      required: [id, title, description, isEnabled, integrationReady, publishedVersion, assignable, unavailableReasons, revision, purpose, pedagogicalNotice]
+      properties:
+        id: {$ref: '#/components/schemas/TaskSummary/properties/id'}
+        title: {$ref: '#/components/schemas/TaskSummary/properties/title'}
+        description: {$ref: '#/components/schemas/TaskSummary/properties/description'}
+        isEnabled: {$ref: '#/components/schemas/TaskSummary/properties/isEnabled'}
+        integrationReady: {$ref: '#/components/schemas/TaskSummary/properties/integrationReady'}
+        publishedVersion: {$ref: '#/components/schemas/TaskSummary/properties/publishedVersion'}
+        assignable: {$ref: '#/components/schemas/TaskSummary/properties/assignable'}
+        unavailableReasons: {$ref: '#/components/schemas/TaskSummary/properties/unavailableReasons'}
+        revision: {$ref: '#/components/schemas/TaskSummary/properties/revision'}
+        purpose: {type: string, minLength: 1}
+        pedagogicalNotice: {type: string, minLength: 1}
     Jwks:
       type: object
       required: [keys]
