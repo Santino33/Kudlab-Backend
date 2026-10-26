@@ -74,11 +74,19 @@ describe('catálogo persistido y proyección autorizada', () => {
     const { teacher, account, admin } = await inviteTeacher();
     const jwt = await (await request('/api/auth/token', 'GET', undefined, admin)).json();
     for (const path of [base, `${base}/TG-01`]) {
-      expect((await request(path, 'GET')).status).toBe(401);
+      const response = await request(path, 'GET');
+      expect(response.status).toBe(401);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' });
       expect((await request(path, 'GET', undefined, { authorization: `Bearer ${jwt.token}` })).status).toBe(401);
     }
     await db.update(userAccounts).set({ status: 'INACTIVA' }).where(eq(userAccounts.id, account.id));
-    expect((await request(base, 'GET', undefined, teacher)).status).toBe(403);
+    for (const path of [base, `${base}/TG-01`]) {
+      const response = await request(path, 'GET', undefined, teacher);
+      expect(response.status).toBe(403);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({ code: 'FORBIDDEN', message: 'Acceso denegado' });
+    }
     await db.update(userAccounts).set({ status: 'ACTIVA' }).where(eq(userAccounts.id, account.id));
     const [stored] = await db.select().from(userAccounts).where(eq(userAccounts.id, account.id));
     await db.update(user).set({ role: 'unknown' }).where(eq(user.id, stored!.authUserId!));
@@ -93,11 +101,13 @@ describe('catálogo persistido y proyección autorizada', () => {
     await db.update(session).set({ createdAt: new Date(Date.now() - 1800001) }).where(eq(session.id, current.session.id));
     expect((await request(base, 'GET', undefined, admin)).status).toBe(401);
     const fresh = await login();
-    vi.spyOn(db, 'selectDistinctOn').mockImplementationOnce(() => { throw new Error('SYNTHETIC_DB_FAILURE'); });
-    const response = await request(base, 'GET', undefined, fresh);
-    expect(response.status).toBe(503);
-    expect(response.headers.get('cache-control')).toBe('no-store');
-    expect(await response.json()).toEqual({ code: 'UNAVAILABLE', message: 'Operación no confirmada' });
+    for (const path of [base, `${base}/TG-01`]) {
+      vi.spyOn(db, 'selectDistinctOn').mockImplementationOnce(() => { throw new Error('SYNTHETIC_DB_FAILURE'); });
+      const response = await request(path, 'GET', undefined, fresh);
+      expect(response.status).toBe(503);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+      expect(await response.json()).toEqual({ code: 'UNAVAILABLE', message: 'Operación no confirmada' });
+    }
   });
 });
 

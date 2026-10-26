@@ -82,6 +82,63 @@ existentes. Allowlist de catálogo en servidor: una fila TG histórica no la amp
 - Suite completa y recorrido real/navegador pendientes en este hito. Evidencia
   final se añade aquí; mocks/typecheck no acreditan cierre integrado.
 
+## Evidencia final y refactor
+
+Implementación inicial backend `36d760d`, auth `518e88b`; frontend `e3a6f90`,
+refactor/correcciones frontend `1f5f778`. Las revisiones finales quedan en los PR
+de ambas ramas `feat/tareas-catalogo`; no se ha fusionado main.
+
+Pruebas completas antes del refactor: 242/242, 39 archivos, 203.32s.
+Después del refactor: **242/242, 39 archivos, 206.50s**, typecheck correcto y
+docs:check **22/22**. Primer intento completo excedió timeout de 120s; se repitió
+con límite de 600s y no se contó el timeout como aprobación. Los avisos de IP/rate
+limit y origen inválido son los casos sintéticos existentes de la suite, no cambios
+de autorización ni incidentes de producción.
+
+Refactor final: no-store + requireActive se concentran en el router de catálogo,
+en el mismo orden, eliminando repetición root/wildcard de app. Se conservan rol,
+validación, proyección y preparación; se amplían aserciones de headers/cuerpos
+401/403 y fallo DB 503 de lista **y ficha**. Revisión independiente de backend
+en snapshot `36d760d` no detectó defectos bloqueantes; recomendó esas aserciones.
+El frontend compartió validación de IDs y eliminó un cast de lista; no se crearon
+frameworks ni dependencias. Dos subagentes revisaron en worktrees aislados sin
+editar estos repositorios ni usar la base durante las pruebas.
+
+### Recorrido SPA/API/PostgreSQL real
+
+API `http://localhost:3011`, SPA `http://localhost:5191`, orígenes exactos; puertos
+ajenos 3000/5173 preservados. Perfil local de validación distinto al aprobado
+5173/3000, sin modificar configuración de producto. NODE_ENV=test y captura de
+correo, cuentas ficticias, DB exclusiva indicada arriba. No se usan mocks para
+estos resultados ni SMTP real.
+
+- Login TEACHER y ADMIN, lista/ficha reales; navegación/recarga por URL y retorno.
+- Solo TG-01. Habilitación cambiada temporalmente en fixture DB: ambas pantallas
+  indican Habilitada pero no lista para asignar, sin integración/versión.
+- Cambio temporal del código en DB exclusiva: vacío real y detalle TG-01 404 con
+  enlace al catálogo. Se restauró código/disponibilidad/revisión iniciales.
+- Renombrado temporal de tabla exclusiva: consulta real devuelve 503, nunca lista
+  vacía; UI retira datos. Tabla restaurada; Reintentar revalida sesión y consulta.
+- Cierre UI y pagehide: retiran catálogo. Sesiones sintéticas expiradas en DB
+  durante suspensión: pageshow presenta acceso perdido y API catálogo responde 401.
+- Sin almacenamiento web de identidad/tokens; no se exportaron cookies/cabeceras
+  sensibles ni datos reales. La primera API temporal se arrancó con otro secreto
+  sintético que el usado por la fixture con JWKS persistido; dio 503 de sesión.
+  Se corrigió el entorno para reutilizar el secreto de pruebas, sin tocar código
+  ni mostrar contenido con acceso incierto.
+
+Frontend: tipos, auth 66/66, Usuarios 70/70, Tareas 11/11 y build correctos tras
+refactor. Harness DOM 11/11 más comprobación móvil 390px; mocks separados del
+recorrido anterior. Catálogo/ficha revisados en iframe same-origin de
+320/390/768/1024/1440px y texto 100%/200% (20 combinaciones sin overflow de página).
+Tabla desplazable por teclado, enlace nombrado de 44px, Enter abre ficha con foco
+en H1. Colores/tokens neutrales del manual, sin semáforos ni diagnóstico.
+
+**Límites:** reflujo 320px, no zoom nativo 400%; sin lector de pantalla, dispositivos
+físicos, BFCache real, HTTPS/TLS, carga productiva o aceptación con profesores.
+Las pruebas funcionales y de integración no certifican piloto/despliegue ni
+resuelven TD-D33. Fuentes/evidencia frontend completas en su spec de la vertical.
+
 ## Pendientes fuera de entrega
 
 TD-D33 (proyecto real TG-01/segundo juego), banco/parámetros/integración,

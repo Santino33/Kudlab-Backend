@@ -1,8 +1,13 @@
 import { Hono } from 'hono';
 import type { AuthVariables } from '../../../auth/session-guard.js';
+import { requireActive } from '../../../auth/session-guard.js';
 import { getTask, listTasks } from './catalog.service.js';
 
 export const catalogRoutes = new Hono<AuthVariables>();
+catalogRoutes.use('*', async (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  return requireActive(c, next);
+});
 catalogRoutes.use('*', async (c, next) => {
   if (!['TEACHER', 'ADMIN'].includes(c.get('currentAccount').role))
     return c.json({ code: 'FORBIDDEN', message: 'Acceso denegado' }, 403);
