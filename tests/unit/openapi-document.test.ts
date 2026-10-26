@@ -8,18 +8,18 @@ async function check(doc: Document) {
   const design = readFileSync(new URL('../../specs/006-api-swagger-docs/contracts/documentation.md', import.meta.url), 'utf8');
   const expected = [...design.matchAll(/^\| `([^`]+)` \| (GET|POST|PATCH|PUT) `([^`]+)` \|/gm)]
     .map((m) => `${m[2]!.toLowerCase()} ${m[3]} ${m[1]}`).sort();
-  expect(expected).toHaveLength(26);
+  expect(expected).toHaveLength(28);
   expect(operations(doc).map(([p, m, o]) => `${m} ${p} ${o.operationId}`).sort()).toEqual(expected);
 }
 
-it('valida OpenAPI completo y las 26 operaciones actuales, no solo sintaxis YAML', async () => {
+it('valida OpenAPI completo y las 28 operaciones actuales, no solo sintaxis YAML', async () => {
   const doc = readContract();
   expect(doc.openapi).toBe('3.1.0');
   expect(doc.info.version).toBe('0.1.0');
   expect(doc.servers).toEqual([{ url: '/' }]);
   await check(doc);
   expect(doc.tags.map((t: { name: string }) => t.name).sort()).toEqual([
-    'Acceso', 'Cuentas', 'Invitaciones', 'CambiosCorreo', 'SolicitudesRol', 'Recuperacion', 'Estudiantes',
+    'Acceso', 'Cuentas', 'Invitaciones', 'CambiosCorreo', 'SolicitudesRol', 'Recuperacion', 'Estudiantes', 'Tareas',
   ].sort());
 });
 

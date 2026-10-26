@@ -11,13 +11,14 @@ export type AuthVariables = { Variables: { currentAccount: CurrentAccount; authU
 
 export async function prepareActive(c: Context<AuthVariables>) {
   // getSession validates an opaque, persisted session; a signed JWT alone cannot pass.
-  const session = await auth.api.getSession({ headers: c.req.raw.headers });
+  const { response: session, headers } = await auth.api.getSession({ headers: c.req.raw.headers, returnHeaders: true });
   if (!session?.user || !session.session) return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
   const active = await resolveActiveIdentity(session.user.id);
   if (!active)
     return c.json({ code: 'FORBIDDEN', message: 'Acceso denegado' }, 403);
   if (!await checkSessionActivity(session.session.id, session.user.id))
     return c.json({ code: 'UNAUTHENTICATED', message: 'Sesión requerida' }, 401);
+  for (const cookie of headers.getSetCookie()) c.header('Set-Cookie', cookie, { append: true });
   c.set('currentAccount', active.account);
   c.set('authUserId', session.user.id);
   c.set('sessionId', session.session.id);

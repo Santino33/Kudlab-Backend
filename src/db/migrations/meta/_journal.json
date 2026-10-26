@@ -64,6 +64,13 @@
       "when": 1792781069494,
       "tag": "0008_early_wild_child",
       "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1793038516682,
+      "tag": "0009_task_catalog",
+      "breakpoints": true
     }
   ]
 }

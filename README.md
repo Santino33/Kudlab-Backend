@@ -6,6 +6,13 @@ El diseño documenta cinco áreas: Usuarios, Académico, Tareas, Evolución y Se
 
 ## Tecnologías y requisitos
 
+**Ampliación vertical 01:** esta rama incorpora consulta persistida de catálogo y
+ficha de Tareas para ADMIN/TEACHER activos, sin ejecutar ni asignar juegos.
+TG-01 se registra deshabilitada, sin integración comprobada ni versión publicada.
+El catálogo OpenAPI pasa a **28 operaciones**; las menciones históricas de Tareas
+fuera de HTTP/26 operaciones describen la base anterior. Ver
+[spec, fuentes y verificación](docs/feature-specs/tareas/01-catalogo-y-ficha.md).
+
 - Node.js 24 y npm (el proyecto exige `>=24 <25`).
 - PostgreSQL accesible desde la máquina donde se ejecuta la API.
 - Servidor SMTP y una cuenta remitente para invitaciones y cambios de correo. El modo de captura de mensajes está reservado a pruebas (`NODE_ENV=test`).
