@@ -3,9 +3,10 @@ import { app } from '../src/app.js';
 import { db } from '../src/db/client.js';
 import { bootstrapAdmin } from '../src/scripts/bootstrap-admin.js';
 import { capturedMail } from '../src/modules/usuarios/invitations/invitations.mailer.js';
+import { groups } from '../src/db/schema/academic.js';
 
 export async function reset() {
-  await db.execute(sql`truncate password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
+  await db.execute(sql`truncate students, groups, password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
   capturedMail.length = 0;
   await bootstrapAdmin();
 }
@@ -38,4 +39,16 @@ export async function inviteTeacher(email = 'teacher@pilot.edu.co') {
   const accepted = await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'TeacherPass1' });
   if (accepted.status !== 200) throw new Error(`Activación fallida ${accepted.status} ${await accepted.text()}`);
   return { account, admin, teacher: await login(email, 'TeacherPass1') };
+}
+
+export async function academicFixture() {
+  const a = await inviteTeacher('teacher-a@pilot.edu.co');
+  const b = await inviteTeacher('teacher-b@pilot.edu.co');
+  const aGroups = await db.insert(groups).values([1, 2].map((n) => ({
+    teacherId: a.account.id, name: `A${n}`, grade: '3', schoolYear: 2026,
+  }))).returning();
+  const bGroups = await db.insert(groups).values([1, 2].map((n) => ({
+    teacherId: b.account.id, name: `B${n}`, grade: '3', schoolYear: 2026,
+  }))).returning();
+  return { a, b, aGroups, bGroups };
 }

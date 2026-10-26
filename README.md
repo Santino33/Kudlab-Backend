@@ -2,7 +2,7 @@
 
 API del prototipo piloto Kudlab, una herramienta de apoyo al seguimiento pedagógico de estudiantes de tercero del Colegio San Diego (Duitama). El proyecto busca reunir observaciones docentes, notas escolares y resultados de tareas digitales para consultar la evolución de cada estudiante. No sustituye una evaluación curricular ni produce diagnósticos clínicos.
 
-El diseño documenta cinco áreas: Usuarios, Académico, Tareas, Evolución y Seguimiento. **En `main`, este backend implementa principalmente Usuarios**: cuentas y roles del personal, invitaciones, autenticación y sesiones. Las demás áreas forman parte del alcance documentado; sus funcionalidades no deben asumirse disponibles en esta rama. Consulta el [contexto del proyecto](docs/agent-context/project-context.md), el [mapa de módulos](docs/agent-context/INDEX.md) y la [arquitectura documentada](docs/agent-context/architecture-summary.md).
+El diseño documenta cinco áreas: Usuarios, Académico, Tareas, Evolución y Seguimiento. Este backend implementa Usuarios y cinco operaciones de registro, listado, consulta, corrección e inactivación de estudiantes en Académico. **Los profesores operan esos registros; los estudiantes no acceden ni tienen cuentas en este backend.** Los demás recursos académicos, Tareas, Evolución y Seguimiento siguen fuera del catálogo HTTP actual. Consulta el [contexto del proyecto](docs/agent-context/project-context.md), el [mapa de módulos](docs/agent-context/INDEX.md) y la [arquitectura documentada](docs/agent-context/architecture-summary.md).
 
 ## Tecnologías y requisitos
 
@@ -17,7 +17,7 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 1. Instala las dependencias y crea un archivo de configuración local:
 
    ```bash
-   npm ci
+   SCARF_ANALYTICS=false npm ci
    cp .env.example .env
    ```
 
@@ -36,7 +36,7 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 
    ```bash
    npm run db:migrate
-   npm run dev
+    NODE_ENV=development npm run dev
    ```
 
    La API escucha en el puerto `3000` por defecto; se puede cambiar con `PORT`. Para ejecutarla sin vigilancia de archivos, usa `npm start`.
@@ -63,8 +63,32 @@ npm run typecheck
 npm test
 ```
 
-Las pruebas de integración necesitan una base PostgreSQL **aislada y migrada**. Si no se define `DATABASE_URL` para pruebas, `tests/setup.ts` utiliza `127.0.0.1:55432/kudlab_test`; prepara esa base antes de ejecutar `npm test`. Usa únicamente datos ficticios en las pruebas.
+Las pruebas de integración necesitan una base PostgreSQL **aislada y migrada**: las fixtures truncan tablas con `CASCADE`. No usar una base compartida, escolar o productiva. Define explícitamente `DATABASE_URL` y, si existe, `MIGRATION_DATABASE_URL` hacia la misma base desechable antes de migrar o probar; no dependas del fallback de `tests/setup.ts` ni reutilices la BD de otro worktree. Usa únicamente datos ficticios. La validación documental no necesita PostgreSQL:
+
+```bash
+npm run docs:check
+```
 
 ## API y documentación
 
-Las rutas implementadas incluyen `/api/auth/*` para el acceso del personal y `/api/v1/accounts` para la gestión de cuentas por administradores; hay además rutas de invitación, solicitudes de rol y cambio de correo. Los contratos y recorridos de validación se encuentran en [`specs/001-gestionar-cuentas-roles/`](specs/001-gestionar-cuentas-roles/) y [`specs/002-validar-perfil-acceso/`](specs/002-validar-perfil-acceso/). El [índice documental](docs/agent-context/INDEX.md) distingue el diseño propuesto de lo implementado.
+El catálogo canónico es [`docs/api/openapi.yaml`](docs/api/openapi.yaml), OpenAPI 3.1.0: **26 operaciones implementadas**, 21 de Usuarios/autenticación y cinco sobre estudiantes realizadas por profesores. Incluye parámetros, cuerpos, respuestas, errores, permisos y ejemplos sintéticos/no operativos. Los contratos anteriores de `specs/001…005/contracts/` conservan su condición histórica; no copiar propuestas como disponibilidad actual.
+
+Con `NODE_ENV=development` o `NODE_ENV=test` explícitos:
+
+- Swagger UI de consulta: `http://localhost:3000/docs`.
+- Contrato descargable: `http://localhost:3000/openapi.yaml`.
+- CSS y bundle se sirven localmente, sin CDN ni validación remota. `SCARF_ANALYTICS=false` desactiva la analítica de instalación del paquete Swagger UI.
+
+En producción, staging, entorno vacío o ausente, **UI, contrato y assets devuelven 404**, incluso con sesión ADMIN. El script `dev` no configura el entorno por sí mismo: usa `NODE_ENV=development npm run dev` para habilitar documentación local. No exponerla mediante un default permisivo.
+
+La UI no ejecuta peticiones de negocio (“Try it out” deshabilitado), no contiene credenciales precargadas ni persiste autorización. El cliente real utiliza cookie HttpOnly o Bearer **opaco de sesión persistida**, no el JWT de interoperabilidad de `/api/auth/token`. El navegador no permite fijar libremente `Cookie` ni leer cookies HttpOnly; no cambies CORS o permisos para sortearlo. Los tokens de invitación, correo o recuperación son de un uso y no son sesiones. ADMIN no tiene acceso implícito a operaciones de estudiantes.
+
+### Actualizar y verificar
+
+1. Contrastar cambios con `src/app.ts`, lista blanca de autenticación, routers, validadores, servicios y pruebas: documentar únicamente lo implementado.
+2. Actualizar el YAML canónico y, si cambia el alcance autorizado en otra feature, el [inventario y mapa de operaciones](specs/006-api-swagger-docs/contracts/documentation.md). No mantener una segunda copia operativa. Reiniciar el proceso tras cambiar el YAML: se carga una vez al construir el router, no en cada petición.
+3. Ejecutar `npm run docs:check`: valida estructura OpenAPI completa, referencias internas, IDs, ejemplos/esquemas y publicación por entorno; no importa app/bootstrap ni necesita BD. También comprueba mutaciones negativas del contrato.
+4. Ejecutar `npm run typecheck` y contratos/regresión con BD exclusiva. Las respuestas reales deben validar contra el documento; no cambies el negocio para ajustarlo a un supuesto documental.
+5. Abrir `/docs` y expandir una operación por tag; comprobar esquemas, seguridad y ejemplos, consola sin errores, solo tres peticiones locales de recursos y cero solicitudes de negocio/exteriores. Separar ese resultado de la validación documental y HTTP.
+
+Guía reproducible: [quickstart](specs/006-api-swagger-docs/quickstart.md). Evidencia y limitaciones de entrega: [validation.md](specs/006-api-swagger-docs/validation.md). El [índice documental](docs/agent-context/INDEX.md) mantiene separados diseño y código disponible.

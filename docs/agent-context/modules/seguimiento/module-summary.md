@@ -1,5 +1,28 @@
 # Seguimiento pedagógico y presentación
 
+## Responsabilidad del backend
+
+**Diseño, sin módulo implementado en esta base.** Es propietario de observaciones estructuradas y anotaciones cualitativas; construye consultas pedagógicas integrando datos de otros módulos. «Presentación» aquí significa datos y contexto para el frontend de profesores, no renderizar gráficos ni desarrollar una aplicación web.
+
+### Entradas, salidas y límites
+
+- Recibe observaciones/anotaciones del profesor autorizado, conserva autor/estudiante/fecha/periodo cuando aplique y aplica escala aprobada.
+- Consulta ficha/notas de Académico, recorrido/incidencias de Tareas y resultados/historia/comparabilidad de Evolución. No modifica esas fuentes ni implementa una segunda fórmula de cálculo.
+- Devuelve valores con unidad, tarea, fecha/condición, disponibilidad y limitaciones; la UI muestra gráficos, aviso no diagnóstico y conserva su última vista válida ante error.
+- Las consultas individuales y agregadas deben filtrar ámbito en servidor. Ser ADMIN no confiere por defecto lectura irrestricta de menores; definir permiso explícito antes de exponer datos.
+
+### Estructura recomendada (no creada)
+
+Dentro de `src/modules/seguimiento/`: `queries/` (panel/filtros/agrupación), `observations/` (registro individual y matriz), `annotations/` (texto contextual). No crear un submódulo que vuelva a gestionar notas o indicadores. Esquemas/migraciones de sus escrituras en `src/db/`; aplicar [guía](../../implementation-guide.md).
+
+### Antes de implementar
+
+Resolver escala/campos/edición de observaciones; persistencia de anotaciones; atomicidad y respuesta de guardado de matriz; criterios de agregado y permisos. Un listado vacío, indicador no disponible, sesión inválida y error de consulta son estados distintos, no un único cero. Exportación aparece en fuentes históricas, pero no tiene contrato ni alcance aprobado por esta actualización. Ver [pendientes SE-01…03](../../unresolved-issues.md).
+
+Pruebas de dos profesores, filtros/IDs ajenos, periodo vacío, insuficiencia, fuentes separadas, fila inválida en matriz y edición autorizada. Las pruebas visuales descritas por F pertenecen al consumidor; la API debe ofrecer información suficiente para realizarlas.
+
+## Referencia funcional de las fuentes
+
 1. **Propósito:** reunir información individual/grupal, observaciones estructuradas y anotaciones cualitativas para la docente (V3 RF-021…025).
 2. **Alcance:** consulta por dimensión/tarea/área, gráficos y filtros, registro individual y matriz grupal, notas contextuales; no rankings, diagnóstico ni atribución causal (F §6 pp. 53–62).
 3. **Actores:** docente autorizado para sus estudiantes/grupos; administrador/coordinación solo según permisos definidos (A CU04/05 pp. 33–35).

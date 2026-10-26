@@ -13,6 +13,9 @@ import { fail } from './modules/usuarios/shared/accounts.errors.js';
 import { resolveActiveIdentity } from './auth/active-identity.js';
 import { checkSessionActivity } from './auth/session-activity.js';
 import { z } from 'zod';
+import { studentsRoutes } from './modules/academico/students/students.routes.js';
+import { requireTeacher } from './modules/academico/shared/academic-auth.js';
+import { createDocumentationRoutes } from './docs/documentation.routes.js';
 
 export const app = new Hono<AuthVariables>();
 const env = loadEnv();
@@ -87,4 +90,8 @@ app.use('/api/v1/admin-role-requests/*', requireActive);
 app.route('/api/v1/admin-role-requests', promotionRoutes);
 app.route('/api/v1/account-email-changes', emailChangeRoutes);
 app.route('/api/v1/auth/password-recovery', recoveryRoutes);
+app.use('/api/v1/students', requireTeacher);
+app.use('/api/v1/students/*', requireTeacher);
+app.route('/api/v1/students', studentsRoutes);
+app.route('/', createDocumentationRoutes());
 app.onError((error, c) => fail(c, error));
