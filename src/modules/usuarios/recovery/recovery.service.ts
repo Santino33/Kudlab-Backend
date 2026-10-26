@@ -11,7 +11,7 @@ import { AccountError } from '../shared/accounts.errors.js';
 import { institutionalEmail, passwordSchema } from '../shared/accounts.validation.js';
 import { lockAccount } from '../shared/account-lock.js';
 import { digestToken } from '../invitations/invitations.service.js';
-import { makeMailer } from '../invitations/invitations.mailer.js';
+import { sendTransactionalMail } from '../shared/transactional-mail.js';
 import { recordAudit } from '../shared/audit.service.js';
 
 const RESET_TTL_MS = 30 * 60 * 1000;
@@ -34,15 +34,15 @@ export async function requestRecovery(rawEmail: string) {
     await tx.update(passwordRecoveryVerifications).set({ invalidatedAt: createdAt })
       .where(and(eq(passwordRecoveryVerifications.accountId, account.id),
         isNull(passwordRecoveryVerifications.consumedAt), isNull(passwordRecoveryVerifications.invalidatedAt)));
-    await tx.insert(passwordRecoveryVerifications).values({ accountId: account.id, emailNormalized: email,
-      tokenDigest: digestToken(token), createdAt, expiresAt: new Date(createdAt.getTime() + RESET_TTL_MS) });
-    return { email, token };
+    const [verification] = await tx.insert(passwordRecoveryVerifications).values({ accountId: account.id, emailNormalized: email,
+      tokenDigest: digestToken(token), createdAt, expiresAt: new Date(createdAt.getTime() + RESET_TTL_MS) }).returning({ id: passwordRecoveryVerifications.id });
+    return { id: verification!.id, email, token };
   });
   if (issued) {
     const url = new URL(loadEnv().RESET_BASE_URL);
     url.searchParams.set('token', issued.token);
-    try { await makeMailer('Recuperar acceso a Kudlab')(issued.email, url.toString()); }
-    catch { /* No revelar si la cuenta existe ni afirmar que se entregó el enlace. */ }
+    // Expected SMTP failures are diagnostic-only; never disclose eligibility through the public response.
+    await sendTransactionalMail({ purpose: 'password-recovery', operationId: issued.id, to: issued.email, url: url.toString() });
   }
 }
 

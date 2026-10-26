@@ -9,7 +9,7 @@ import { INVITATION_TTL_MS, loadEnv } from '../../../config/env.js';
 import { AccountError, parseProfileInput } from '../shared/accounts.errors.js';
 import { passwordSchema } from '../shared/accounts.validation.js';
 import { recordAudit } from '../shared/audit.service.js';
-import { makeMailer } from './invitations.mailer.js';
+import { recordMailDiagnostic, sendTransactionalMail } from '../shared/transactional-mail.js';
 import { lockAccount } from '../shared/account-lock.js';
 
 export const digestToken = (token: string) => createHash('sha256').update(token).digest('hex');
@@ -25,22 +25,17 @@ export async function issueInvitation(tx: Parameters<Parameters<typeof db.transa
 export async function deliverInvitation(id: string, email: string, token: string) {
   const url = new URL(loadEnv().INVITATION_BASE_URL);
   url.searchParams.set('token', token);
+  const reference = { purpose: 'invitation' as const, operationId: id };
+  const result = await sendTransactionalMail({ ...reference, to: email, url: url.toString() });
+  if (result.outcome === 'unknown')
+    throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'No se pudo confirmar el envío de la invitación');
   try {
-    await makeMailer()(email, url.toString());
+    await db.update(invitations).set({ deliveryStatus: result.outcome === 'accepted' ? 'ENVIADA' : 'ERROR' }).where(eq(invitations.id, id));
   } catch {
-    try {
-      await db.update(invitations).set({ deliveryStatus: 'ERROR' }).where(eq(invitations.id, id));
-    } catch {
-      throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'No se pudo registrar el resultado de entrega');
-    }
-    throw new AccountError(503, 'DELIVERY_FAILED', 'Invitación pendiente de entrega');
-  }
-  try {
-    await db.update(invitations).set({ deliveryStatus: 'ENVIADA' }).where(eq(invitations.id, id));
-  } catch {
-    // SMTP accepted the message. Preserve PENDIENTE instead of claiming delivery failed.
+    recordMailDiagnostic(reference, { outcome: result.outcome, category: 'persistence' });
     throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'El correo pudo entregarse; verifique el estado');
   }
+  if (result.outcome === 'rejected') throw new AccountError(503, 'DELIVERY_FAILED', 'Invitación pendiente de entrega');
 }
 
 export async function acceptInvitation(token: string, submittedPassword: unknown) {

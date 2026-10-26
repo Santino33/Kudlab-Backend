@@ -56,7 +56,7 @@ describe('US1: contrato HTTP de invitaciones', () => {
   });
   it('responde 503 si el SMTP rechaza la entrega', async () => {
     const headers = await login();
-    Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: '127.0.0.1', MAIL_PORT: '1', MAIL_USER: 'test',
+    Object.assign(process.env, { MAIL_MODE: 'smtp', MAIL_HOST: 'localhost', MAIL_PORT: '1', MAIL_USER: 'test',
       MAIL_PASSWORD: 'test', MAIL_FROM: 'noreply@pilot.edu.co' });
     try {
       expect((await request('/api/v1/accounts', 'POST', { name: 'Docente', email: 'failed@pilot.edu.co', role: 'TEACHER' }, headers)).status).toBe(503);

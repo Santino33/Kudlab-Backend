@@ -8,7 +8,7 @@ import { AccountError } from '../shared/accounts.errors.js';
 import { institutionalEmail } from '../shared/accounts.validation.js';
 import { recordAudit } from '../shared/audit.service.js';
 import { deliverInvitation, digestToken, issueInvitation } from '../invitations/invitations.service.js';
-import { makeMailer } from '../invitations/invitations.mailer.js';
+import { sendTransactionalMail } from '../shared/transactional-mail.js';
 import { lockAccount } from '../shared/account-lock.js';
 
 export async function changeEmail(accountId: string, email: string, actor: string, name?: string) {
@@ -41,18 +41,19 @@ export async function changeEmail(accountId: string, email: string, actor: strin
     await tx.update(userAccounts).set({ pendingEmailNormalized: normalized, ...(name ? { fullName: name } : {}), updatedAt: new Date() }).where(eq(userAccounts.id, account.id));
     if (name && name !== account.fullName) await recordAudit(tx, account.id, actor, 'UPDATE', { name: account.fullName }, { name });
     const now = new Date();
-    await tx.insert(emailChanges).values({ accountId: account.id, requestedByAuthUserId: actor,
+    const [change] = await tx.insert(emailChanges).values({ accountId: account.id, requestedByAuthUserId: actor,
       newEmailNormalized: normalized, tokenDigest: digestToken(token),
-      createdAt: now, expiresAt: new Date(now.getTime() + INVITATION_TTL_MS) });
+      createdAt: now, expiresAt: new Date(now.getTime() + INVITATION_TTL_MS) }).returning({ id: emailChanges.id });
     await recordAudit(tx, account.id, actor, 'REQUEST_EMAIL_CHANGE', { email: account.emailNormalized }, { email: normalized });
-    return { token, pending: false };
+    return { id: change!.id, token, pending: false };
   });
   if (issued.pending) await deliverInvitation(issued.id!, normalized, issued.token);
   else {
-    const url = new URL(loadEnv().INVITATION_BASE_URL);
+    const url = new URL(loadEnv().EMAIL_CHANGE_BASE_URL);
     url.searchParams.set('token', issued.token);
-    try { await makeMailer()(normalized, url.toString()); }
-    catch { throw new AccountError(503, 'DELIVERY_FAILED', 'Verificación pendiente de entrega'); }
+    const result = await sendTransactionalMail({ purpose: 'email-change', operationId: issued.id, to: normalized, url: url.toString() });
+    if (result.outcome === 'rejected') throw new AccountError(503, 'DELIVERY_FAILED', 'Verificación pendiente de entrega');
+    if (result.outcome === 'unknown') throw new AccountError(503, 'DELIVERY_STATUS_UNKNOWN', 'No se pudo confirmar el envío de verificación');
   }
 }
 

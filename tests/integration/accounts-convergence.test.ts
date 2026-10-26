@@ -1,13 +1,36 @@
-import { beforeEach, describe, expect, it } from 'vitest';
+import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { eq } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
 import { user } from '../../src/db/schema/auth.js';
 import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
+import * as mail from '../../src/modules/usuarios/shared/transactional-mail.js';
 
 describe('convergencia: reservas, concurrencia y autoría', () => {
   beforeEach(reset);
+
+  it('consulta tras 503 y reemisión explícita no duplican cuenta ni reviven la invitación anterior', async () => {
+    const admin = await login();
+    const send = mail.sendTransactionalMail;
+    const spy = vi.spyOn(mail, 'sendTransactionalMail').mockImplementationOnce(async (input) => {
+      await send(input); return { outcome: 'unknown', category: 'network' };
+    });
+    try {
+      expect((await request('/api/v1/accounts', 'POST', { name: 'Uncertain', email: 'retry@pilot.edu.co', role: 'TEACHER' }, admin)).status).toBe(503);
+      const oldToken = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+      const list = await (await request('/api/v1/accounts', 'GET', undefined, admin)).json();
+      const matches = list.items.filter((x: { email: string }) => x.email === 'retry@pilot.edu.co');
+      expect(matches).toHaveLength(1);
+      expect(matches[0]).toMatchObject({ status: 'PENDIENTE', deliveryStatus: 'PENDIENTE' });
+      expect((await request(`/api/v1/accounts/${matches[0].id}`, 'PATCH', { email: 'retry@pilot.edu.co' }, admin)).status).toBe(200);
+      expect(spy).toHaveBeenCalledTimes(2);
+      expect((await request('/api/v1/account-invitations/accept', 'POST', { token: oldToken, password: 'ValidPass1' })).status).toBe(410);
+      const token = new URL(capturedMail.at(-1)!.url).searchParams.get('token');
+      expect((await request('/api/v1/account-invitations/accept', 'POST', { token, password: 'ValidPass1' })).status).toBe(200);
+      expect(await db.select().from(userAccounts).where(eq(userAccounts.emailNormalized, 'retry@pilot.edu.co'))).toHaveLength(1);
+    } finally { spy.mockRestore(); }
+  });
 
   it('impide que una alta ocupe un correo reservado para otra cuenta', async () => {
     const { account, admin } = await inviteTeacher();
