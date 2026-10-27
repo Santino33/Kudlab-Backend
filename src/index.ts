@@ -7,4 +7,6 @@ const { app } = await import('./app.js');
 const { bootstrapAdmin } = await import('./scripts/bootstrap-admin.js');
 
 await bootstrapAdmin();
+const { startProcessor } = await import('./modules/evolucion/processor.js');
+startProcessor();
 serve({ fetch: app.fetch, port: Number(process.env.PORT || 3000) });

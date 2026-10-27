@@ -12,6 +12,8 @@
     "docs:check": "vitest run tests/unit/openapi-document.test.ts tests/unit/documentation-routes.test.ts",
     "db:generate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs generate",
     "db:migrate": "node --env-file-if-exists=.env node_modules/drizzle-kit/bin.cjs migrate",
+    "game:publish": "node --env-file-if-exists=.env --import tsx src/scripts/publish-tg01.ts",
+    "game:contract": "node --import tsx src/scripts/game-contract.ts",
     "auth:generate": "node --env-file-if-exists=.env node_modules/auth/dist/index.mjs generate --config src/auth/auth.ts --output src/db/schema/auth.ts -y"
   },
   "dependencies": {

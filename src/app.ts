@@ -19,12 +19,20 @@ import { createDocumentationRoutes } from './docs/documentation.routes.js';
 import { db } from './db/client.js';
 import { session } from './db/schema/auth.js';
 import { and, eq } from 'drizzle-orm';
-import { catalogRoutes } from './modules/tareas/catalog/catalog.routes.js';
+import { createCatalogRoutes } from './modules/tareas/catalog/catalog.routes.js';
 import { groupsRoutes } from './modules/academico/groups/groups.routes.js';
+import { createGameRoutes } from './modules/tareas/runtime/routes.js';
+import type { GameDependencies } from './modules/academico/shared/participation.js';
 
-export const app = new Hono<AuthVariables>();
+export function createApp(game: GameDependencies = {}) {
+const app = new Hono<AuthVariables>();
 const env = loadEnv();
-app.use('/api/*', cors({ origin: env.SPA_ORIGIN, credentials: true, allowHeaders: ['Content-Type', 'Authorization'], exposeHeaders: ['set-auth-token'] }));
+app.use('/api/*', (c, next) => {
+  c.header('Cache-Control', 'no-store');
+  const runtime = c.req.path.startsWith('/api/v1/game-runtime/');
+  return cors({ origin: runtime ? env.GAME_RUNTIME_ORIGIN ?? 'https://runtime.invalid' : env.SPA_ORIGIN, credentials: !runtime,
+    allowHeaders: ['Content-Type', 'Authorization'], exposeHeaders: runtime ? ['Retry-After'] : ['set-auth-token'] })(c, next);
+});
 const signInInput = z.strictObject({ email: z.email(), password: z.string().min(1), rememberMe: z.boolean().optional() });
 const invalidCredentials = (c: Parameters<typeof fail>[0]) => c.json({ code: 'INVALID_CREDENTIALS', message: 'Credenciales inválidas' }, 401);
 app.all('/api/auth/*', async (c) => {
@@ -100,10 +108,14 @@ app.use('/api/v1/admin-role-requests/*', requireActive);
 app.route('/api/v1/admin-role-requests', promotionRoutes);
 app.route('/api/v1/account-email-changes', emailChangeRoutes);
 app.route('/api/v1/auth/password-recovery', recoveryRoutes);
+app.route('/', createGameRoutes(game));
 app.use('/api/v1/students', requireTeacher);
 app.use('/api/v1/students/*', requireTeacher);
 app.route('/api/v1/students', studentsRoutes);
-app.route('/api/v1/tasks', catalogRoutes);
+app.route('/api/v1/tasks', createCatalogRoutes(game));
 app.route('/api/v1/groups', groupsRoutes);
 app.route('/', createDocumentationRoutes());
 app.onError((error, c) => fail(c, error));
+return app;
+}
+export const app = createApp();

@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { isIP } from 'node:net';
 
 const controls = /[\u0000-\u001f\u007f]/;
+const optionalSetting = <T extends z.ZodType>(value: T) => z.preprocess(input => input === '' ? undefined : input, value.optional());
 const publicUrl = z.string().url().refine((value) => !controls.test(value) && value === value.trim());
 
 const url = z.string().url().refine((value) => {
@@ -19,6 +20,10 @@ const schema = z.object({
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: url,
   SPA_ORIGIN: url,
+  GAME_RUNTIME_ORIGIN: optionalSetting(url),
+  GAME_GRANT_KEYS: optionalSetting(z.string()),
+  GAME_ACTIVE_KEY_ID: optionalSetting(z.string().regex(/^[a-zA-Z0-9_-]{1,32}$/)),
+  GAME_CURSOR_KEY: optionalSetting(z.string().regex(/^[a-f0-9]{64}$/)),
   INVITATION_BASE_URL: publicUrl,
   EMAIL_CHANGE_BASE_URL: publicUrl,
   RESET_BASE_URL: publicUrl,
@@ -33,6 +38,16 @@ const schema = z.object({
   BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
 }).superRefine((config, ctx) => {
   const issue = (key: string) => ctx.addIssue({ code: 'custom', path: [key], message: 'Configuración inválida' });
+  if (config.GAME_RUNTIME_ORIGIN) {
+    try { if (new URL(config.GAME_RUNTIME_ORIGIN).origin !== config.GAME_RUNTIME_ORIGIN || new URL(config.GAME_RUNTIME_ORIGIN).origin === new URL(config.SPA_ORIGIN).origin) issue('GAME_RUNTIME_ORIGIN'); }
+    catch { issue('GAME_RUNTIME_ORIGIN'); }
+    if (!config.GAME_ACTIVE_KEY_ID || !config.GAME_CURSOR_KEY) issue('GAME_ACTIVE_KEY_ID');
+    try {
+      const keys = JSON.parse(config.GAME_GRANT_KEYS ?? '{}') as Record<string, unknown>;
+      if (!keys || Array.isArray(keys) || typeof keys !== 'object' || !Object.hasOwn(keys, config.GAME_ACTIVE_KEY_ID ?? '') ||
+        Object.entries(keys).some(([id, key]) => !/^[a-zA-Z0-9_-]{1,32}$/.test(id) || typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key))) issue('GAME_GRANT_KEYS');
+    } catch { issue('GAME_GRANT_KEYS'); }
+  } else if (config.GAME_GRANT_KEYS || config.GAME_ACTIVE_KEY_ID || config.GAME_CURSOR_KEY) issue('GAME_RUNTIME_ORIGIN');
   if (config.MAIL_MODE === 'capture' && config.NODE_ENV !== 'test') issue('MAIL_MODE');
   if (config.MAIL_MODE === 'smtp') {
     for (const key of ['MAIL_HOST', 'MAIL_USER', 'MAIL_PASSWORD', 'MAIL_FROM'] as const)

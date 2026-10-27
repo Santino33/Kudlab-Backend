@@ -1,5 +1,11 @@
 # Kudlab Backend
 
+**J-02 (2026-10-27):** asignación supervisada de TG-01, capacidades runtime 1.0/1.1,
+ingesta idempotente, procesamiento recuperable y consulta individual. OpenAPI:
+50 operaciones/11 tags. **Entrega técnica con datos ficticios y BD aislada**;
+la composición normal no concede consentimiento/participación. Sin J-03.
+[Integración, ejecución y límites](docs/integracion-play.md).
+
 **Cursos, ampliación de esta rama (2026-10-26):** CRUD ADMIN de cursos y asignación de profesor, consulta propia TEACHER y listado de estudiantes por curso. Transferencia confirmada conserva registros y cambia el acceso actual; solo se eliminan cursos sin estudiantes, incluidos inactivos. ADMIN no recibe acceso a registros estudiantiles. Reutiliza `groups`, sin migración ni dependencia nueva. [Contrato, fuentes y evidencia](docs/feature-specs/academico/02-cursos.md). OpenAPI actual: 35 operaciones/9 tags; las exclusiones históricas de grupos siguientes ya no aplican.
 
 API del prototipo piloto Kudlab, una herramienta de apoyo al seguimiento pedagógico de estudiantes de tercero del Colegio San Diego (Duitama). El proyecto busca reunir observaciones docentes, notas escolares y resultados de tareas digitales para consultar la evolución de cada estudiante. No sustituye una evaluación curricular ni produce diagnósticos clínicos.
