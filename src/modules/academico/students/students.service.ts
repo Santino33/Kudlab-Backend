@@ -43,12 +43,13 @@ async function ownStudent(tx: AcademicTransaction, actor: AcademicActor, id: str
   return row;
 }
 
-export async function listStudents(actor: AcademicActor) {
+export async function listStudents(actor: AcademicActor, groupId?: string) {
   return withAcademicAccess(actor, async (tx) => {
+    if (groupId !== undefined) { studentId(groupId); await ownGroup(tx, actor, groupId, 'read'); }
     // Protect current responsibility until this read and its session acceptance complete.
     await tx.select({ id: groups.id }).from(groups).where(eq(groups.teacherId, actor.accountId)).for('share');
     const rows = await tx.select({ student: students }).from(students).innerJoin(groups, eq(students.groupId, groups.id))
-      .where(eq(groups.teacherId, actor.accountId)).orderBy(asc(students.id));
+      .where(and(eq(groups.teacherId, actor.accountId), groupId !== undefined ? eq(groups.id, groupId) : undefined)).orderBy(asc(students.id));
     return { items: rows.map(({ student }) => presentStudent(student)) };
   });
 }

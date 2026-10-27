@@ -2,6 +2,8 @@
 
 ## Estado observado en esta base
 
+**Actualización Cursos 2026-10-26:** sobre base `c989fae`, esta rama monta siete operaciones adicionales de grupos/cursos, con sesión persistida y rol exacto revalidado transaccionalmente. ADMIN organiza/asigna, TEACHER consulta cursos propios y sus estudiantes; ADMIN sin acceso estudiantil. OpenAPI actual: **35 operaciones / 9 tags**, incluyendo Tareas ya existente. [Fuentes, alcance y evidencia](../feature-specs/academico/02-cursos.md). Las exclusiones y cifras del párrafo histórico siguiente no describen esta ampliación.
+
 Revisión del catálogo sobre la base `096a8fa`, actualizada por la feature 006. Existe una API Node.js 24/TypeScript, Hono, Better Auth, Drizzle y PostgreSQL; versiones en [package.json](../../package.json). Usuarios implementa cuentas, recuperación, invitaciones y solicitudes de ascenso. Académico implementa cinco operaciones de estudiantes bajo `/api/v1/students`, operadas por profesores TEACHER sobre su ámbito propio; los estudiantes no acceden ni tienen cuentas aquí. No hay endpoints de grupos, consentimiento, notas, Tareas, Evolución o Seguimiento disponibles. El [catálogo OpenAPI actual](../api/openapi.yaml) cubre las 26 operaciones; Swagger UI `/docs` y `/openapi.yaml` solo están habilitados en desarrollo/pruebas explícitos. Ver también [mapa de implementación](implementation-guide.md), contrastando sus referencias históricas con el código.
 
 El frontend de profesores y el servicio externo de juegos no viven aquí. Los diagramas antiguos agrupan las interfaces de profesores y estudiantes como «UI»; eso describe la plataforma completa, **no el límite de este repositorio**. Ver [alcance](project-context.md) y [límites](module-boundaries.md).

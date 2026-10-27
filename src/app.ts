@@ -20,6 +20,7 @@ import { db } from './db/client.js';
 import { session } from './db/schema/auth.js';
 import { and, eq } from 'drizzle-orm';
 import { catalogRoutes } from './modules/tareas/catalog/catalog.routes.js';
+import { groupsRoutes } from './modules/academico/groups/groups.routes.js';
 
 export const app = new Hono<AuthVariables>();
 const env = loadEnv();
@@ -103,5 +104,6 @@ app.use('/api/v1/students', requireTeacher);
 app.use('/api/v1/students/*', requireTeacher);
 app.route('/api/v1/students', studentsRoutes);
 app.route('/api/v1/tasks', catalogRoutes);
+app.route('/api/v1/groups', groupsRoutes);
 app.route('/', createDocumentationRoutes());
 app.onError((error, c) => fail(c, error));

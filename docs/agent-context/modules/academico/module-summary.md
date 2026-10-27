@@ -2,7 +2,7 @@
 
 ## Responsabilidad del backend
 
-**Diseño, sin módulo implementado en esta base.** Es propietario del participante (no cuenta de acceso), grupo, responsabilidad docente, consentimiento/evidencia y nota escolar. Usuarios autentica al profesor; Académico determina qué estudiantes/grupos están bajo su responsabilidad. No asigna juegos ni conserva sus eventos; no escribe observaciones/anotaciones, que pertenecen a Seguimiento.
+**Implementación actual:** cinco operaciones de estudiantes y siete operaciones de cursos bajo `/api/v1/students` y `/api/v1/groups`. [Cursos: decisiones, contrato y evidencia](../../../feature-specs/academico/02-cursos.md). ADMIN gestiona cursos y asigna responsable, sin acceso a registros estudiantiles; TEACHER gestiona estudiantes de sus cursos. Transferencia requiere confirmación explícita y cambia el acceso actual conservando registros. Consentimiento/evidencia y notas siguen sin endpoints; las secciones de diseño siguientes no acreditan su disponibilidad. Usuarios autentica al profesor; Académico determina su ámbito. No escribe observaciones/anotaciones, que pertenecen a Seguimiento.
 
 ### Entradas, salidas y límites
 
@@ -11,15 +11,15 @@
 - Provee ficha y notas a Seguimiento. Inactivar no es borrar ni resolver automáticamente una solicitud legal de retiro.
 - El [proveedor de ámbito existente](../../../../src/modules/usuarios/shared/scope-authorization.ts) usa ID de cuenta de negocio y deniega sin proveedor. Definir operaciones académicas y permisos ADMIN antes de conectarlo; no asumir acceso irrestricto.
 
-### Estructura recomendada (no creada)
+### Estructura existente y recomendada
 
-Dentro de `src/modules/academico/`: `students/`, `groups/`, `consents/`, `academic-notes/`; rutas/servicios por feature conforme a la [guía](../../implementation-guide.md). La gestión de grupos y responsabilidad docente necesita especificación propia: `groups` no es solo un filtro de consulta. Esquema/migraciones en `src/db/`, no copias del ERD dentro de cada feature.
+Dentro de `src/modules/academico/` existen `students/`, `groups/` y `shared/`; `consents/` y `academic-notes/` son diseño pendiente. Cursos reutiliza la tabla `groups`, sin migración ni duplicación. Esquema/migraciones en `src/db/`, no copias del ERD dentro de cada feature.
 
 ### Antes de implementar
 
 Resolver campos/identificador mínimos; permisos de gestión de grupos y transferencias/historia; referencia de docente a cuenta vs identidad; estados/vigencia/revocación y conservación de consentimiento. La escala institucional y unicidad de notas bloquean **notas**, no toda gestión de grupos. No fijar `score NUMERIC(3,2)` como escala institucional. Estados temporales de matrícula y consentimiento deben mantenerse distintos. Ver [pendientes AC-01…03](../../unresolved-issues.md).
 
-Probar dos profesores con grupos distintos, consulta por ID ajeno, revocación entre asignación e inicio, inactivación sin borrar historia y fallo del proveedor de ámbito. Los contratos HTTP aún deben especificarse: no hay endpoints académicos implementados aquí.
+La suite actual comprueba dos profesores, IDs ajenos, transferencia de ámbito, inactivación y borrado/alta concurrentes. Revocación entre asignación e inicio pertenece a la integración futura de Tareas, no a una capacidad de juego disponible por implementar cursos.
 
 ## Referencia funcional de las fuentes
 

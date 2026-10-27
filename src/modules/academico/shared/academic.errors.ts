@@ -1,6 +1,6 @@
 import type { Context } from 'hono';
 
-export type AcademicField = 'groupId' | 'studentCode' | 'firstName' | 'lastName';
+export type AcademicField = 'groupId' | 'studentCode' | 'firstName' | 'lastName' | 'name' | 'grade' | 'schoolYear' | 'teacherId';
 export class AcademicError extends Error {
   constructor(public status: 400 | 401 | 403 | 404 | 409 | 503, public code: string, message: string,
     public fields?: Partial<Record<AcademicField, string>>) { super(message); }

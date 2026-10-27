@@ -71,6 +71,15 @@ Identificadores estables propuestos para el YAML canónico. Seguridad `sessionCo
 | `deactivateStudent` | POST `/api/v1/students/{id}/deactivate` | TEACHER activo y estudiante propio |
 | `listTasks` | GET `/api/v1/tasks` | TEACHER o ADMIN activo |
 | `getTask` | GET `/api/v1/tasks/{taskId}` | TEACHER o ADMIN activo |
+| `listGroups` | GET `/api/v1/groups` | ADMIN todos, TEACHER propios |
+| `createGroup` | POST `/api/v1/groups` | ADMIN activo |
+| `getGroup` | GET `/api/v1/groups/{id}` | ADMIN o TEACHER responsable |
+| `updateGroup` | PATCH `/api/v1/groups/{id}` | ADMIN; transferencia confirmada |
+| `deleteGroup` | DELETE `/api/v1/groups/{id}` | ADMIN; solo curso vacío |
+| `listGroupTeachers` | GET `/api/v1/groups/teachers` | ADMIN activo |
+| `listGroupStudents` | GET `/api/v1/groups/{id}/students` | TEACHER responsable; ADMIN denegado |
+
+Ampliación autorizada Cursos: 35 operaciones/9 tags. Ver `docs/feature-specs/academico/02-cursos.md`. Las exclusiones históricas de grupos HTTP que siguen no describen esta extensión.
 
 Actualización vertical 01 (2026-10-26): 28 operaciones/8 tags con consulta de
 catálogo y ficha. Las menciones de 26 operaciones anteriores describen la base 006;
