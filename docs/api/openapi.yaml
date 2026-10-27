@@ -7,7 +7,8 @@ info:
     operaciones sobre registros de estudiantes realizadas por profesores TEACHER
     en su ámbito propio. Los estudiantes no acceden ni tienen cuentas aquí.
     Incluye consulta docente del catálogo y fichas de tareas; no ejecución de juegos.
-    No incluye grupos HTTP, consentimiento, registro público ni Google.
+    Incluye cursos (grupos) gestionados por ADMIN y consulta propia por TEACHER.
+    No incluye consentimiento, registro público ni Google.
     Los contratos históricos propuestos no acreditan disponibilidad.
     Todos los ejemplos son ficticios/no operativos: no enviar correo a sus direcciones
     ni utilizar sus contraseñas o marcadores como credenciales reales.
@@ -25,6 +26,7 @@ tags:
   - {name: Recuperacion, description: Recuperación neutra y confirmación sin login automático.}
   - {name: Estudiantes, description: Registros gestionados por TEACHER en grupos propios; ADMIN no tiene acceso implícito.}
   - {name: Tareas, description: Consulta del catálogo por TEACHER y ADMIN activos; no ejecución ni asignación.}
+  - {name: Cursos, description: Grupos existentes; CRUD ADMIN y consulta propia TEACHER.}
 paths:
   /api/auth/sign-in/email:
     post:
@@ -615,6 +617,119 @@ paths:
         '403': {$ref: '#/components/responses/Forbidden'}
         '404': {$ref: '#/components/responses/NotFound'}
         '503': {$ref: '#/components/responses/Unavailable'}
+  /api/v1/groups:
+    get:
+      operationId: listGroups
+      summary: Listar cursos visibles
+      description: ADMIN todos; TEACHER propios. Sin query. DTO sin estudiantes ni cantidades; no-store.
+      tags: [Cursos]
+      security: *session
+      responses:
+        '200':
+          description: Cursos visibles; vacío válido.
+          content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/Group'}}}}}}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+    post:
+      operationId: createGroup
+      summary: Crear curso y asignar docente
+      description: Solo ADMIN; cuenta TEACHER activa con identidad concordante. No idempotencia ni activación de estudiantes.
+      tags: [Cursos]
+      security: *session
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GroupInput'}}}
+      responses:
+        '201': {$ref: '#/components/responses/GroupResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '409': {$ref: '#/components/responses/GroupConflict'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/groups/teachers:
+    get:
+      operationId: listGroupTeachers
+      summary: Consultar docentes elegibles para un curso
+      description: Solo ADMIN. Cuenta TEACHER activa e identidad concordante; sin correos. Sin query.
+      tags: [Cursos]
+      security: *session
+      responses:
+        '200':
+          description: Profesores elegibles.
+          content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {type: object, additionalProperties: false, required: [id, name], properties: {id: {type: string, format: uuid}, name: {type: string, minLength: 1}}}}}}}}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/groups/{id}:
+    parameters:
+      - {$ref: '#/components/parameters/GroupId'}
+    get:
+      operationId: getGroup
+      summary: Consultar curso
+      description: ADMIN o TEACHER responsable. ID inválido, ajeno e inexistente producen 404 neutral.
+      tags: [Cursos]
+      security: *session
+      responses:
+        '200': {$ref: '#/components/responses/GroupResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+    patch:
+      operationId: updateGroup
+      summary: Editar curso o transferir responsabilidad
+      description: ADMIN. Cambiar profesor exige confirmTransfer=true; nuevo profesor elegible, anterior pierde ámbito. Sin ETag ni historia de responsabilidad. Sin query.
+      tags: [Cursos]
+      security: *session
+      requestBody:
+        required: true
+        content: {application/json: {schema: {$ref: '#/components/schemas/GroupPatch'}}}
+      responses:
+        '200': {$ref: '#/components/responses/GroupResult'}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '409': {$ref: '#/components/responses/GroupConflict'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+    delete:
+      operationId: deleteGroup
+      summary: Eliminar curso vacío
+      description: ADMIN. Cuerpo ausente, no query. Rechaza si contiene estudiantes incluso inactivos; sin CASCADE. Respuesta perdida no demuestra rollback.
+      tags: [Cursos]
+      security: *session
+      responses:
+        '200':
+          description: Eliminación confirmada.
+          content: {application/json: {schema: {type: object, additionalProperties: false, required: [id, deleted], properties: {id: {type: string, format: uuid}, deleted: {type: boolean, const: true}}}}}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '409': {$ref: '#/components/responses/GroupConflict'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
+  /api/v1/groups/{id}/students:
+    parameters:
+      - {$ref: '#/components/parameters/GroupId'}
+    get:
+      operationId: listGroupStudents
+      summary: Listar estudiantes de un curso propio
+      description: Solo TEACHER responsable; ADMIN denegado. Activos e inactivos, orden por ID. Sin query; 404 neutral si curso ajeno o ausente.
+      tags: [Cursos]
+      security: *session
+      responses:
+        '200':
+          description: Registros del curso; vacío válido.
+          content: {application/json: {schema: {type: object, required: [items], properties: {items: {type: array, items: {$ref: '#/components/schemas/Student'}}}}}}
+        '400': {$ref: '#/components/responses/AcademicBadInput'}
+        '401': {$ref: '#/components/responses/AcademicUnauthenticated'}
+        '403': {$ref: '#/components/responses/AcademicForbidden'}
+        '404': {$ref: '#/components/responses/AcademicNotFound'}
+        '503': {$ref: '#/components/responses/AcademicUnavailable'}
 components:
   securitySchemes:
     sessionCookie:
@@ -632,6 +747,7 @@ components:
       scheme: bearer
       description: Credencial OPACA de sesión Better Auth persistida, obtenida en set-auth-token. No usar el JWT de interoperabilidad.
   parameters:
+    GroupId: {name: id, in: path, required: true, description: UUID de curso; malformado/ajeno/ausente404., schema: {type: string, format: uuid}}
     AccountId: {name: id, in: path, required: true, description: UUID de cuenta de negocio; inválido o ausente404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000001]}}
     RequestId: {name: id, in: path, required: true, description: UUID de solicitud; inválido o ausente404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000003]}}
     StudentId: {name: id, in: path, required: true, description: UUID de estudiante propio; malformado/ajeno/ausente produce mismo404., schema: {type: string, format: uuid, examples: [00000000-0000-4000-8000-000000000004]}}
@@ -647,6 +763,36 @@ components:
       required: true
       content: {application/json: {schema: {type: object, additionalProperties: false, required: [confirm], properties: {confirm: {type: boolean, const: true, description: Confirmación explícita de transición., examples: [true]}}}}}
   schemas:
+    GroupInput:
+      type: object
+      additionalProperties: false
+      required: [name, grade, schoolYear, teacherId]
+      properties:
+        name: {type: string, minLength: 1, maxLength: 50, description: Recortado y sin NUL.}
+        grade: {type: string, minLength: 1, maxLength: 20, description: Recortado y sin NUL.}
+        schoolYear: {type: integer, minimum: -2147483648, maximum: 2147483647, description: Entero PostgreSQL; no se fija rango institucional.}
+        teacherId: {type: string, format: uuid, description: Cuenta de negocio TEACHER activa elegible.}
+    GroupPatch:
+      type: object
+      additionalProperties: false
+      anyOf: [{required: [name]}, {required: [grade]}, {required: [schoolYear]}, {required: [teacherId]}]
+      properties:
+        name: {$ref: '#/components/schemas/GroupInput/properties/name'}
+        grade: {$ref: '#/components/schemas/GroupInput/properties/grade'}
+        schoolYear: {$ref: '#/components/schemas/GroupInput/properties/schoolYear'}
+        teacherId: {$ref: '#/components/schemas/GroupInput/properties/teacherId'}
+        confirmTransfer: {type: boolean, const: true, description: Obligatorio cuando cambia el responsable.}
+    Group:
+      type: object
+      additionalProperties: false
+      required: [id, name, grade, schoolYear, teacherId, teacherName]
+      properties:
+        id: {type: string, format: uuid}
+        name: {$ref: '#/components/schemas/GroupInput/properties/name'}
+        grade: {$ref: '#/components/schemas/GroupInput/properties/grade'}
+        schoolYear: {$ref: '#/components/schemas/GroupInput/properties/schoolYear'}
+        teacherId: {type: string, format: uuid}
+        teacherName: {type: string, minLength: 1}
     TaskSummary:
       type: object
       additionalProperties: false
@@ -821,6 +967,10 @@ components:
             studentCode: {$ref: '#/components/schemas/FieldReason'}
             firstName: {$ref: '#/components/schemas/FieldReason'}
             lastName: {$ref: '#/components/schemas/FieldReason'}
+            name: {$ref: '#/components/schemas/FieldReason'}
+            grade: {$ref: '#/components/schemas/FieldReason'}
+            schoolYear: {$ref: '#/components/schemas/FieldReason'}
+            teacherId: {$ref: '#/components/schemas/FieldReason'}
     FieldReason: {type: string, enum: [required, invalid_type, invalid_format, too_long], description: Motivo académico de campo permitido., examples: [required]}
     ProviderError:
       type: object
@@ -829,6 +979,12 @@ components:
         code: {type: string, description: Código del proveedor cuando existe., examples: [INVALID_ORIGIN]}
         message: {type: string, description: Mensaje delegado no normalizado., examples: [Invalid origin]}
   responses:
+    GroupResult:
+      description: Curso confirmado; sin datos de estudiantes.
+      content: {application/json: {schema: {$ref: '#/components/schemas/Group'}}}
+    GroupConflict:
+      description: Responsable no elegible, transferencia sin confirmar o curso con estudiantes/referencias que impiden borrado.
+      content: {application/json: {schema: {$ref: '#/components/schemas/AcademicError'}}}
     AccountResult:
       description: Representación actual de cuenta.
       content: {application/json: {schema: {$ref: '#/components/schemas/Account'}}}

@@ -24,13 +24,13 @@ export function academicActor(c: Context<AuthVariables>): AcademicActor {
   return { accountId: c.get('currentAccount').id, authUserId: c.get('authUserId'), sessionId: c.get('sessionId') };
 }
 
-export async function withAcademicAccess<T>(actor: AcademicActor, operation: (tx: AcademicTransaction) => Promise<T>): Promise<T> {
+export async function withAcademicAccess<T>(actor: AcademicActor, operation: (tx: AcademicTransaction) => Promise<T>, role: 'TEACHER' | 'ADMIN' = 'TEACHER'): Promise<T> {
   return db.transaction(async (tx) => {
     // NOWAIT prevents lock inversion with existing identity-first account lifecycle operations.
     const [account] = await tx.select().from(userAccounts).where(eq(userAccounts.id, actor.accountId))
       .for('share');
     const [identity] = await tx.select().from(user).where(eq(user.id, actor.authUserId)).for('share', { noWait: true });
-    if (!account || account.authUserId !== actor.authUserId || account.role !== 'TEACHER' ||
+    if (!account || account.authUserId !== actor.authUserId || account.role !== role ||
       !hasActiveIdentity(account, identity) || account.emailNormalized !== identity?.email.toLowerCase()) throw forbidden();
     const [current] = await tx.select().from(session).where(and(eq(session.id, actor.sessionId), eq(session.userId, actor.authUserId)))
       .for('update');

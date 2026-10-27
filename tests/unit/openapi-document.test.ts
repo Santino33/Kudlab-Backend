@@ -6,20 +6,20 @@ async function check(doc: Document) {
   await validateDocument(doc);
   await validateExamples(doc);
   const design = readFileSync(new URL('../../specs/006-api-swagger-docs/contracts/documentation.md', import.meta.url), 'utf8');
-  const expected = [...design.matchAll(/^\| `([^`]+)` \| (GET|POST|PATCH|PUT) `([^`]+)` \|/gm)]
+  const expected = [...design.matchAll(/^\| `([^`]+)` \| (GET|POST|PATCH|PUT|DELETE) `([^`]+)` \|/gm)]
     .map((m) => `${m[2]!.toLowerCase()} ${m[3]} ${m[1]}`).sort();
-  expect(expected).toHaveLength(28);
+  expect(expected).toHaveLength(35);
   expect(operations(doc).map(([p, m, o]) => `${m} ${p} ${o.operationId}`).sort()).toEqual(expected);
 }
 
-it('valida OpenAPI completo y las 28 operaciones actuales, no solo sintaxis YAML', async () => {
+it('valida OpenAPI completo y las 35 operaciones actuales, no solo sintaxis YAML', async () => {
   const doc = readContract();
   expect(doc.openapi).toBe('3.1.0');
   expect(doc.info.version).toBe('0.1.0');
   expect(doc.servers).toEqual([{ url: '/' }]);
   await check(doc);
   expect(doc.tags.map((t: { name: string }) => t.name).sort()).toEqual([
-    'Acceso', 'Cuentas', 'Invitaciones', 'CambiosCorreo', 'SolicitudesRol', 'Recuperacion', 'Estudiantes', 'Tareas',
+    'Acceso', 'Cuentas', 'Invitaciones', 'CambiosCorreo', 'SolicitudesRol', 'Recuperacion', 'Estudiantes', 'Tareas', 'Cursos',
   ].sort());
 });
 

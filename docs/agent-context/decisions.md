@@ -4,6 +4,8 @@
 
 | Registro | Estado y evidencia |
 | --- | --- |
+| Cursos = `groups`; ADMIN organiza, TEACHER opera sus estudiantes | **Confirmado por el responsable 2026-10-26 e implementado en esta rama.** ADMIN no obtiene lectura estudiantil. Borrado solo sin estudiantes, incluidos inactivos. [Contrato y evidencia](../feature-specs/academico/02-cursos.md). |
+| Transferencia de curso poblado | **Confirmado expresamente por el responsable:** nuevo profesor gana acceso actual y el anterior lo pierde; conserva registros/IDs y requiere confirmación. No acredita historia de asignaciones ni consentimiento. |
 | Usuarios humanos de este proyecto = profesores; estudiantes en otro servicio | **Confirmado por el responsable en esta sesión.** ADMIN/TEACHER son roles del personal. Los actores estudiantes de los diagramas corresponden al sistema completo, no a cuentas nuevas aquí. |
 | Backend API sin motor de juegos ni frontend | Alcance confirmado; coherente con D ADR-02 (p. 13) y el repositorio. Conserva registro/gestión de tareas, asignaciones y endpoints de integración; no elimina las reglas pedagógicas de las fuentes. |
 | Stack actual Hono/TypeScript/Better Auth/Drizzle/PostgreSQL | **Implementación observada**, `package.json`, `src/app.ts`, `src/auth/auth.ts`, `src/db/`. Las alternativas históricas no son motivo para cambiar el stack. |

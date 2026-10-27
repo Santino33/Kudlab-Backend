@@ -57,6 +57,14 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(`${recovery}/confirm`, 'POST', await request(`${recovery}/confirm`, 'POST', { token: resetToken, newPassword: 'NuevoFicticio123' }), 200);
   teacher = await login('changed@pilot.edu.co', 'NuevoFicticio123');
   const [group] = await db.insert(groups).values({ teacherId: account.id, name: 'Grupo sintético', grade: '3', schoolYear: 2026 }).returning();
+  const courses = '/api/v1/groups';
+  const course = await check(courses, 'POST', await request(courses, 'POST', { teacherId: account.id, name: 'Curso ficticio', grade: '3', schoolYear: 2026 }, admin), 201);
+  await check(courses, 'GET', await request(courses, 'GET', undefined, teacher), 200);
+  await check(`${courses}/teachers`, 'GET', await request(`${courses}/teachers`, 'GET', undefined, admin), 200);
+  await check(`${courses}/{id}`, 'GET', await request(`${courses}/${course.id}`, 'GET', undefined, teacher), 200);
+  await check(`${courses}/{id}`, 'PATCH', await request(`${courses}/${course.id}`, 'PATCH', { name: 'Curso corregido' }, admin), 200);
+  await check(`${courses}/{id}/students`, 'GET', await request(`${courses}/${course.id}/students`, 'GET', undefined, teacher), 200);
+  await check(`${courses}/{id}`, 'DELETE', await request(`${courses}/${course.id}`, 'DELETE', undefined, admin), 200);
   const students = '/api/v1/students';
   const student = await check(students, 'POST', await request(students, 'POST', { groupId: group!.id, studentCode: 'SYN-006', firstName: 'Participante', lastName: 'Ficticio' }, teacher), 201);
   await check(students, 'GET', await request(students, 'GET', undefined, teacher), 200);
