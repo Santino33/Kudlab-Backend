@@ -85,7 +85,8 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(`${base}/{id}/deactivate`, 'POST', await request(`${base}/${account.id}/deactivate`, 'POST', { confirm: true }, admin), 200);
   await check(`${base}/{id}/reactivate`, 'POST', await request(`${base}/${account.id}/reactivate`, 'POST', { confirm: true }, admin), 200);
   await check('/api/auth/sign-out', 'POST', await request('/api/auth/sign-out', 'POST', undefined, await login()), 200);
-  expect([...successes].sort()).toEqual(operations(doc).map(([p, m]) => `${m} ${p}`).sort());
+  // J-02 validates its real responses separately with the isolated participation provider.
+  expect([...successes].sort()).toEqual(operations(doc).filter(([, , op]) => !op.tags.some((tag: string) => ['Actividades', 'Runtime'].includes(tag))).map(([p, m]) => `${m} ${p}`).sort());
 });
 
 it('documenta el código real de cada token vencido, no copia un ejemplo de otro flujo', () => {
@@ -106,6 +107,8 @@ it('valida fallos de sesión, rol, ámbito, entradas y tokens sin revelar datos 
     return assertResponse(doc, path, method, response);
   };
   for (const [path, method, op] of operations(doc)) {
+    // Runtime credentials/origins are independent, exercised in game-integration.test.ts.
+    if (op.tags.includes('Runtime')) continue;
     const concrete = path.replace('{id}', randomUUID()).replace('{taskId}', 'TG-01');
     if (op.security.length) await check(path, method, await request(concrete, method.toUpperCase()), 401);
     else if (method === 'post') {

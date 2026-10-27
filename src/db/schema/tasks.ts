@@ -23,5 +23,6 @@ export const taskPublishedVersions = pgTable('task_published_versions', {
   publishedAt: timestamp('published_at', { withTimezone: true }).notNull().defaultNow(),
 }, (t) => [
   unique('task_published_versions_number_unique').on(t.taskId, t.version),
+  unique('task_published_versions_task_unique').on(t.id, t.taskId),
   check('task_published_versions_number_check', sql`${t.version} > 0`),
 ]);

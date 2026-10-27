@@ -14,7 +14,7 @@ const seedSql = readFileSync(new URL('../../src/db/migrations/0009_task_catalog.
 async function seed() { await db.execute(sql.raw(seedSql)); }
 
 describe('catálogo persistido y proyección autorizada', () => {
-  beforeEach(async () => { await reset(); await db.delete(taskPublishedVersions); await db.delete(tasks); await seed(); });
+  beforeEach(async () => { await reset(); await db.execute(sql`truncate tasks restart identity cascade`); await seed(); });
   afterEach(() => vi.restoreAllMocks());
 
   it('ADMIN y TEACHER activos consultan solo TG-01 y DTO filtrado', async () => {
@@ -52,7 +52,7 @@ describe('catálogo persistido y proyección autorizada', () => {
     const versions = await db.insert(taskPublishedVersions).values([{ taskId: 'TG-01', version: 3 }, { taskId: 'TG-01', version: 1 }]).returning();
     const detail = await (await request(`${base}/TG-01`, 'GET', undefined, admin)).json();
     expect(detail).toMatchObject({ isEnabled: true, revision: 2, integrationReady: false, assignable: false,
-      publishedVersion: { id: versions[0]!.id, version: 3 }, unavailableReasons: ['INTEGRATION_PENDING'] });
+      publishedVersion: { id: versions[0]!.id, version: 3 }, unavailableReasons: ['INTEGRATION_PENDING', 'CONFIGURATION_UNSUPPORTED'] });
   });
 
   it('distingue vacío, fuera de catálogo y entrada inválida; errores también no-store', async () => {

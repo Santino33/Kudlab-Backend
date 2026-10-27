@@ -78,6 +78,25 @@ Identificadores estables propuestos para el YAML canónico. Seguridad `sessionCo
 | `deleteGroup` | DELETE `/api/v1/groups/{id}` | ADMIN; solo curso vacío |
 | `listGroupTeachers` | GET `/api/v1/groups/teachers` | ADMIN activo |
 | `listGroupStudents` | GET `/api/v1/groups/{id}/students` | TEACHER responsable; ADMIN denegado |
+| `createTaskAssignment` | POST `/api/v1/task-assignments` | TEACHER responsable; participación autorizada |
+| `listTaskAssignments` | GET `/api/v1/task-assignments` | TEACHER responsable |
+| `getTaskAssignment` | GET `/api/v1/task-assignments/{id}` | TEACHER responsable |
+| `cancelTaskAssignment` | POST `/api/v1/task-assignments/{id}/cancel` | TEACHER responsable |
+| `createLaunchGrant` | POST `/api/v1/task-assignment-recipients/{id}/launch-grants` | TEACHER responsable |
+| `listStudentTaskSessions` | GET `/api/v1/students/{id}/task-sessions` | TEACHER responsable |
+| `getTaskSession` | GET `/api/v1/task-sessions/{id}` | TEACHER responsable |
+| `listTaskEvidence` | GET `/api/v1/task-sessions/{id}/evidence` | TEACHER responsable |
+| `createRecoveryGrant` | POST `/api/v1/task-sessions/{id}/recovery-grants` | TEACHER responsable; misma sesión/envío |
+| `retryTaskProcessing` | POST `/api/v1/task-sessions/{id}/processing-retries` | TEACHER responsable; cálculo fallido |
+| `claimGameLaunch` | POST `/api/v1/game-runtime/launches/claim` | Grant supervisado, no cookie docente |
+| `getRuntimeContext` | GET `/api/v1/game-runtime/sessions/{id}` | Capacidad de la sesión |
+| `startGameSession` | POST `/api/v1/game-runtime/sessions/{id}/start` | Capacidad de inicio |
+| `submitGameEvidence` | POST `/api/v1/game-runtime/sessions/{id}/results` | Capacidad de entrega |
+| `getEvidenceReceipt` | GET `/api/v1/game-runtime/sessions/{id}/receipt` | Capacidad de acuse |
+
+Ampliación J-02: **50 operaciones/11 tags**. Contratos 1.0 y 1.1; sin J-03.
+La composición normal no concede participación: solo las pruebas aisladas inyectan
+autorizaciones sintéticas. Ver `docs/integracion-play.md`.
 
 Ampliación autorizada Cursos: 35 operaciones/9 tags. Ver `docs/feature-specs/academico/02-cursos.md`. Las exclusiones históricas de grupos HTTP que siguen no describen esta extensión.
 
