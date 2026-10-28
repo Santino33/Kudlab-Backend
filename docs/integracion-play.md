@@ -1,5 +1,10 @@
 # J-02 · Integración supervisada con Kudlab Play
 
+**Ampliación posterior J-03:** la vía supervisada se conserva. La guía actual de
+códigos, configuración y artefacto aditivo 1.2.0 está en [acceso por código](acceso-codigo.md).
+Las cifras de 50 operaciones/sin códigos inferiores describen la entrega J-02;
+el catálogo actual tiene 58 operaciones/12 tags. No sobrescribir el artefacto histórico 1.1.0.
+
 ## Alcance y decisiones
 
 Fuente: `Kudlab-play/especificaciones-juegos/{README.md,02-integracion-kudlab-extremo-a-extremo.md,contrato-runtime-v1.md}` y `Kudlab-play/docs/contract-1.1.md`.
@@ -72,9 +77,9 @@ como prueba sintética con la composición de tests. No se publica aprobación r
 ## Contrato compartido y puente
 
 Fuente canónica: `src/modules/tareas/runtime/{contract,dto}.ts`.
-`npm run game:contract -- /ruta/al/consumidor/contract/kudlab-runtime-1.1.0` genera
+`npm run game:contract -- /ruta/al/consumidor/contract/kudlab-runtime-1.2.0` genera
 JSON Schema, tipos estructurales, fixture sintético, vectores RFC 8785 y manifiesto
-SHA-256. Artefacto versionado `contract/runtime-1.1.0`; Play consume una copia fijada
+SHA-256. J-02 fijó `contract/runtime-1.1.0`; esta rama genera `contract/runtime-1.2.0` sin cambiar sobres. Play consume una copia fijada
 sin imports del filesystem de otro repo ni secretos. Los refinamientos cruzados de
 tiempo/geometría se prueban además de JSON Schema. OpenAPI incorpora las **50 operaciones**
 montadas (15 nuevas); J-03 no está publicado.

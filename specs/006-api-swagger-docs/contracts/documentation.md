@@ -93,8 +93,16 @@ Identificadores estables propuestos para el YAML canónico. Seguridad `sessionCo
 | `startGameSession` | POST `/api/v1/game-runtime/sessions/{id}/start` | Capacidad de inicio |
 | `submitGameEvidence` | POST `/api/v1/game-runtime/sessions/{id}/results` | Capacidad de entrega |
 | `getEvidenceReceipt` | GET `/api/v1/game-runtime/sessions/{id}/receipt` | Capacidad de acuse |
+| `createAccessCodes` | POST `/api/v1/task-assignments/{id}/access-codes` | TEACHER actual; lote atómico sin secretos |
+| `listAccessCodes` | GET `/api/v1/task-assignments/{id}/access-codes` | TEACHER actual; solo metadatos |
+| `revealAccessCode` | POST `/api/v1/task-access-codes/{id}/reveal` | TEACHER actual; revelado explícito no-store |
+| `replaceAccessCode` | POST `/api/v1/task-access-codes/{id}/replace` | TEACHER actual; idempotente |
+| `revokeAccessCode` | POST `/api/v1/task-access-codes/{id}/revoke` | TEACHER actual; no borra evidencia |
+| `createRecoveryCode` | POST `/api/v1/task-sessions/{id}/access-recovery-codes` | TEACHER actual; solo entrega |
+| `claimAccessCode` | POST `/api/v1/game-runtime/access/claim` | Código; sin cookie ni Authorization docente |
+| `recoverAccessCode` | POST `/api/v1/game-runtime/access/recover` | Código y sesión/submission original; solo entrega |
 
-Ampliación J-02: **50 operaciones/11 tags**. Contratos 1.0 y 1.1; sin J-03.
+Ampliación J-03: **58 operaciones/12 tags**. Sobres 1.0/1.1 sin cambios; artefacto aditivo 1.2.0. Canje público por código individual de cinco caracteres. Participación institucional y uso real siguen bloqueados.
 La composición normal no concede participación: solo las pruebas aisladas inyectan
 autorizaciones sintéticas. Ver `docs/integracion-play.md`.
 

@@ -37,12 +37,12 @@ export const recipients = pgTable('task_assignment_recipients', {
 export const operationReceipts = pgTable('task_operation_receipts', {
   id: uuid('id').primaryKey().defaultRandom(), actorId: uuid('actor_account_id').notNull().references(() => userAccounts.id),
   requestId: uuid('request_id').notNull(), operation: text('operation').notNull(), requestHash: text('request_hash').notNull(),
-  references: jsonb('result_references').$type<{ id: string }>().notNull(), createdAt: at('created_at').notNull().defaultNow(),
+  references: jsonb('result_references').$type<{ id: string; ids?: string[]; createdCount?: number }>().notNull(), createdAt: at('created_at').notNull().defaultNow(),
 }, t => [unique().on(t.actorId, t.requestId)]);
 export const gameSessions = pgTable('task_sessions', {
   id: uuid('id').primaryKey().defaultRandom(), recipientId: uuid('recipient_id').notNull(), studentId: uuid('student_id').notNull(),
   taskId: text('task_id').notNull().references(() => tasks.id), groupIdAtStart: uuid('group_id_at_start').references(() => groups.id),
-  launchMode: text('launch_mode', { enum: ['SUPERVISED'] }).notNull().default('SUPERVISED'),
+  launchMode: text('launch_mode', { enum: ['SUPERVISED', 'CODE'] }).notNull().default('SUPERVISED'), sourceAccessCodeId: uuid('source_access_code_id'),
   attemptNumber: integer('attempt_number'),
   executionStatus: text('execution_status', { enum: ['READY', 'RUNNING', 'COMPLETED', 'INTERRUPTED', 'EXPIRED', 'UNCONFIRMED'] }).notNull().default('READY'),
   processingStatus: text('processing_status', { enum: ['NOT_RECEIVED', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED'] }).notNull().default('NOT_RECEIVED'),
@@ -58,7 +58,7 @@ export const runtimeCapabilities = pgTable('task_runtime_capabilities', {
   id: uuid('id').primaryKey().defaultRandom(), sessionId: uuid('session_id').notNull().references(() => gameSessions.id),
   secretDigest: text('secret_digest').notNull().unique(), claimId: uuid('claim_id').notNull(), canStart: boolean('can_start').notNull(),
   canSubmit: boolean('can_submit').notNull(), canReadReceipt: boolean('can_read_receipt').notNull(),
-  startAllowedUntil: at('start_allowed_until').notNull(), expiresAt: at('expires_at').notNull(), revokedAt: at('revoked_at'), submissionId: uuid('submission_id'),
+  startAllowedUntil: at('start_allowed_until').notNull(), expiresAt: at('expires_at').notNull(), revokedAt: at('revoked_at'), submissionId: uuid('submission_id'), sourceAccessCodeId: uuid('source_access_code_id'),
 });
 export const launchGrants = pgTable('task_launch_grants', {
   id: uuid('id').primaryKey().defaultRandom(), sessionId: uuid('session_id').notNull().references(() => gameSessions.id),

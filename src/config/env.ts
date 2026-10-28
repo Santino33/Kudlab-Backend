@@ -24,6 +24,11 @@ const schema = z.object({
   GAME_GRANT_KEYS: optionalSetting(z.string()),
   GAME_ACTIVE_KEY_ID: optionalSetting(z.string().regex(/^[a-zA-Z0-9_-]{1,32}$/)),
   GAME_CURSOR_KEY: optionalSetting(z.string().regex(/^[a-f0-9]{64}$/)),
+  GAME_ACCESS_ENABLED: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
+  GAME_ACCESS_LOOKUP_KEY: optionalSetting(z.string().regex(/^[a-f0-9]{64}$/)),
+  GAME_ACCESS_IP_KEY: optionalSetting(z.string().regex(/^[a-f0-9]{64}$/)),
+  GAME_ACCESS_KEYS: optionalSetting(z.string()),
+  GAME_ACCESS_ACTIVE_KEY_ID: optionalSetting(z.string().regex(/^[a-zA-Z0-9_-]{1,32}$/)),
   INVITATION_BASE_URL: publicUrl,
   EMAIL_CHANGE_BASE_URL: publicUrl,
   RESET_BASE_URL: publicUrl,
@@ -38,6 +43,16 @@ const schema = z.object({
   BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
 }).superRefine((config, ctx) => {
   const issue = (key: string) => ctx.addIssue({ code: 'custom', path: [key], message: 'Configuración inválida' });
+  if (config.GAME_ACCESS_ENABLED) {
+    if (!config.GAME_RUNTIME_ORIGIN || !config.GAME_ACCESS_LOOKUP_KEY || !config.GAME_ACCESS_IP_KEY || config.GAME_ACCESS_LOOKUP_KEY === config.GAME_ACCESS_IP_KEY) issue('GAME_ACCESS_LOOKUP_KEY');
+    try {
+      const keys = JSON.parse(config.GAME_ACCESS_KEYS ?? '{}');
+      if (!keys || Array.isArray(keys) || !Object.hasOwn(keys, config.GAME_ACCESS_ACTIVE_KEY_ID ?? '') || Object.entries(keys).some(([id, key]) => !/^[a-zA-Z0-9_-]{1,32}$/.test(id) || typeof key !== 'string' || !/^[a-f0-9]{64}$/.test(key))) issue('GAME_ACCESS_KEYS');
+      const reserved = [config.GAME_CURSOR_KEY, ...Object.values(JSON.parse(config.GAME_GRANT_KEYS ?? '{}'))];
+      if (reserved.includes(config.GAME_ACCESS_LOOKUP_KEY) || reserved.includes(config.GAME_ACCESS_IP_KEY)) issue('GAME_ACCESS_LOOKUP_KEY');
+      if (keys && Object.values(keys).some(key => [...reserved, config.GAME_ACCESS_LOOKUP_KEY, config.GAME_ACCESS_IP_KEY].includes(key))) issue('GAME_ACCESS_KEYS');
+    } catch { issue('GAME_ACCESS_KEYS'); }
+  }
   if (config.GAME_RUNTIME_ORIGIN) {
     try { if (new URL(config.GAME_RUNTIME_ORIGIN).origin !== config.GAME_RUNTIME_ORIGIN || new URL(config.GAME_RUNTIME_ORIGIN).origin === new URL(config.SPA_ORIGIN).origin) issue('GAME_RUNTIME_ORIGIN'); }
     catch { issue('GAME_RUNTIME_ORIGIN'); }
