@@ -1,5 +1,7 @@
 # J-03 · Verificación técnica · 2026-10-27
 
+Registro de la entrega inicial. El refinamiento posterior aprobado de aula/proyección y acuse automático tiene [verificación separada](aula-acuse-verificacion.md); sustituye las decisiones iniciales de distribución individual y reconciliación docente sin borrar esta evidencia histórica.
+
 Solo datos ficticios y BDs nuevas aisladas. No habilita participantes reales ni acredita consentimiento o validación metodológica.
 
 ## Bases, entorno y fuentes

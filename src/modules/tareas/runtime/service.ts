@@ -153,19 +153,19 @@ export function createGameService(deps: GameDependencies = {}) {
       capabilities: { canStart: cap.canStart && s.executionStatus === 'READY' && cap.startAllowedUntil > now,
         canSubmit: cap.canSubmit && s.attemptNumber !== null, canReadReceipt: cap.canReadReceipt } };
   }
-  async function authenticated<T>(sessionId: string, token: string, work: (tx: Tx, s: SessionRow, cap: Capability) => Promise<T>) {
+  async function authenticated<T>(sessionId: string, token: string, work: (tx: Tx, s: SessionRow, cap: Capability) => Promise<T>, receiptOnly = false) {
     resourceId(sessionId); const digest = secretDigest(token);
     return db.transaction(async tx => {
       const [initial] = await tx.select().from(runtimeCapabilities).where(eq(runtimeCapabilities.secretDigest, digest));
-      if (!initial || initial.revokedAt || initial.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
+      if (!initial || initial.revokedAt || !receiptOnly && initial.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
       if (initial.sessionId !== sessionId) throw notFound();
       const [before] = await tx.select().from(gameSessions).where(eq(gameSessions.id, sessionId));
       const { a } = await sessionConfig(tx, before!);
       await tx.select().from(groups).where(eq(groups.id, a.groupId)).for('share');
-      await lockStudent(tx, before!.studentId); await expire(tx, before!.studentId);
+      await lockStudent(tx, before!.studentId); if (!receiptOnly) await expire(tx, before!.studentId);
       const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).for('update');
       const [cap] = await tx.select().from(runtimeCapabilities).where(eq(runtimeCapabilities.id, initial.id)).for('update');
-      if (!cap || cap.revokedAt || cap.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
+      if (!cap || cap.revokedAt || !receiptOnly && cap.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
       return work(tx, s!, cap);
     });
   }
@@ -540,7 +540,7 @@ export function createGameService(deps: GameDependencies = {}) {
         if (!cap.canReadReceipt || cap.submissionId && cap.submissionId !== submissionId) throw notFound();
         const [r] = await tx.select().from(resultReceipts).where(and(eq(resultReceipts.sessionId, id), eq(resultReceipts.submissionId, submissionId)));
         return { receipt: r ? receiptDto(r) : null };
-      });
+      }, true); // Expiry closes submission, not read-only acknowledgement of an existing commit.
     },
     async listSessions(actor: AcademicActor, studentId: string, taskId: string | undefined, paging: Paging) {
       return withAcademicAccess(actor, async tx => {

@@ -2796,10 +2796,13 @@ paths:
       summary: Reconciliar acuse de persistencia
       tags:
         - Runtime
-      description: Capacidad por sesión sin cookies docentes. Contratos 1.0 histórico
-        y 1.1 adaptable; identidad/configuración resueltas por servidor. Entrega
-        idempotente, sin reanudar medición. JSON estricto y límites 1 MiB/1000
-        ensayos/1000 incidencias. Véase docs/integracion-play.md.
+      description: Consulta automática y solo de lectura de un acuse existente, ligada
+        al secreto original de capacidad, sesión y submissionId. Acepta
+        capacidad expirada con canReadReceipt, nunca revocada. No renueva
+        capacidad, no habilita inicio/entrega, no devuelve evidencia ni datos
+        nominales. Devuelve receipt:null si ese envío no fue recibido. Play
+        valida sesión/submission/hash antes de limpiar. Conserva origen exacto,
+        no-store y límites runtime. No depende del código corto ni su vigencia.
       security:
         - runtimeCapability: []
       parameters:

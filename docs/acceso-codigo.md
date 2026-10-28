@@ -1,5 +1,7 @@
 # J-03 · Acceso por código
 
+**Refinamiento posterior aprobado por el responsable:** crear asignación prepara sus códigos y abre directamente estudiantes/códigos, con proyección colectiva supervisada y riesgo de uso cruzado aceptado. La acción docente de reconciliar acuse se elimina: Play consulta automáticamente el acuse ya recibido incluso con capacidad de envío expirada. Esta actualización sustituye las indicaciones de distribución individual/no proyección de la entrega inicial. Véase [flujo de aula y acuse automático](aula-acuse.md).
+
 ## Decisiones y alcance
 
 Fuente propuesta: `Kudlab-play/especificaciones-juegos/{README,03-acceso-estudiantil-por-codigo,02-integracion-kudlab-extremo-a-extremo,contrato-runtime-v1}.md`, leída en la copia original no versionada, sin modificarla.
@@ -47,11 +49,11 @@ npm run docs:check
 
 ## Distribución y almacenamiento
 
-Profesor: asignación → selección consciente → confirmar generación → fila individual → mostrar/copiar código o mensaje. El mensaje incluye tarea, URL pública genérica, código y fecha/zona; no nombres/documentos ni secretos en URL. Solo confirma «Copiado» tras éxito del Clipboard API, con texto seleccionable si falla. No equivale a enviado/recibido. Compartir individualmente por el canal autorizado existente; no proyectar listas. El código se oculta al perder foco/visibilidad/navegar/suspender acceso; no se persiste en storage docente.
+Profesor: selecciona destinatarios una vez al asignar → guardar prepara códigos en lotes de hasta 100 → estudiantes/códigos, con gestión y configuración secundarias. La proyección colectiva está aprobada: muestra nombres y códigos de actividad, nunca resultados ni códigos SUBMIT_ONLY; el profesor supervisa el riesgo de uso cruzado. También se conserva copia individual. El mensaje incluye tarea, URL pública genérica, código y fecha/zona; no nombres/documentos ni secretos en URL. Solo confirma «Copiado» tras éxito de Clipboard API, con texto seleccionable si falla. No equivale a enviado/recibido. Los códigos se ocultan al perder foco/visibilidad/navegar/suspender acceso; no se persisten en storage docente.
 
 Play público: `/` permite pegar/escribir un único campo real; canje online → instrucciones/ejemplo/preflight/inicio existentes. IDs y secreto se guardan antes del canje; código solo transitorio en UI/memoria. Si una respuesta se pierde y se recarga, reingresar el mismo código reconcilia la operación conservada; no se reintenta automáticamente un código sin interacción. No se reanuda medición.
 
-`/pendientes`: entrega automática con la credencial propia de cada sesión; si vence, código del destinatario o SUBMIT_ONLY para el pendiente seleccionado. No adapta IDs para buscar coincidencias, no muestra nombres/respuestas/métricas ni ofrece reconstruir lo borrado. Solo un acuse válido permite limpiar. Despliegue estático debe resolver directamente `/pendientes` al shell; el SW solo resuelve recursos propios, nunca API/evidencia.
+`/pendientes`: entrega automática con la credencial propia de cada sesión. Si el permiso de envío venció, Play comprueba automáticamente el acuse existente mediante GET de solo lectura, con el secreto original y el submissionId local; la caducidad del permiso de envío no impide esa consulta y la revocación sí. Sin acuse, no inventa recepción ni renueva permisos: solo entonces se mantiene recuperación del envío nunca recibido con código del destinatario o SUBMIT_ONLY. No adapta IDs para buscar coincidencias, no muestra nombres/respuestas/métricas ni ofrece reconstruir lo borrado. Solo un acuse válido de la misma sesión/submission/hash permite limpiar. El hosting debe resolver `/pendientes` al shell; el SW solo resuelve recursos propios, nunca API/evidencia.
 
 **Origen, perfil y partición importan:** un pendiente del Play público no se recupera suponiendo que el iframe docente comparte IndexedDB, ni al revés. La recuperación supervisada conserva RECOVERY_REQUESTED/RECOVERY_UNAVAILABLE y su contexto original. Sin copia local, explicar dónde buscar, no afirmar ausencia en otros dispositivos.
 
