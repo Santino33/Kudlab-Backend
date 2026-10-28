@@ -9,7 +9,7 @@ export const assignmentSummarySchema = z.strictObject({ id: uuid, taskId: z.lite
   startsAt: datetime, endsAt: datetime, maxAttempts: z.number().int().min(1).max(10), status: z.enum(['OPEN', 'CANCELLED']), availability: z.enum(['FUTURE', 'CURRENT', 'EXPIRED', 'CANCELLED']), recipientCount: count, createdAt: datetime });
 export const assignmentSchema = assignmentSummarySchema.extend({ recipients: z.array(z.strictObject({ id: uuid, studentId: uuid, studentDisplayName: z.string(), studentCode: z.string(), attemptsStarted: count, activeSessionId: uuid.nullable(), canLaunch: z.boolean(), unavailableReasons: z.array(z.enum(['TASK_UNAVAILABLE', 'OUTSIDE_WINDOW', 'ASSIGNMENT_CANCELLED', 'PARTICIPATION_BLOCKED', 'ATTEMPT_LIMIT', 'ACTIVE_SESSION', 'CONFIGURATION_UNSUPPORTED'])) })) });
 export const grantSchema = z.strictObject({ sessionId: uuid, grantId: uuid, launchGrant: secret, expiresAt: datetime, runtimeOrigin: z.url() });
-export const sessionSummarySchema = z.strictObject({ id: uuid, studentId: uuid, taskId: z.literal('TG-01'), assignmentId: uuid, attemptNumber: z.number().int().min(1).max(10).nullable(), launchMode: z.literal('SUPERVISED'),
+export const sessionSummarySchema = z.strictObject({ id: uuid, studentId: uuid, taskId: z.literal('TG-01'), assignmentId: uuid, attemptNumber: z.number().int().min(1).max(10).nullable(), launchMode: z.enum(['SUPERVISED', 'CODE']),
   configVersion: z.number().int().positive(), gameBuildId: z.string(), executionStatus: contextSchema.shape.executionStatus, processingStatus: z.enum(['NOT_RECEIVED', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']),
   preparedAt: datetime, startedAtServer: datetime.nullable(), receivedAt: datetime.nullable(), incidentCount: count, recordedTrialCount: count });
 export const indicatorSchema = z.strictObject({ metricCode: z.enum(['accuracy_pct', 'omission_rate_pct', 'commission_rate_pct', 'median_reaction_time_ms', 'rt_sd_ms', 'rt_cv_pct']),
@@ -20,3 +20,11 @@ export const sessionDetailSchema = sessionSummarySchema.extend({ publishedVersio
   receipt: receiptSchema.nullable(), calculation: z.strictObject({ runId: uuid, ruleCode: z.literal('TG01-DESCRIPTIVE-1'), ruleVersion: z.number().int().positive(), status: z.enum(['PENDING', 'PROCESSING', 'SUCCEEDED', 'FAILED']),
     calculatedAt: datetime.nullable(), summary: z.record(z.string(), z.unknown()), indicators: z.array(indicatorSchema) }).nullable() });
 export const page = (schema: z.ZodType) => z.strictObject({ items: z.array(schema), nextCursor: z.string().nullable() });
+export const codeScope = z.enum(['PLAY_AND_SUBMIT', 'SUBMIT_ONLY']);
+export const codeMetadataSchema = z.strictObject({ id: uuid, recipientId: uuid, scope: codeScope, sessionId: uuid.nullable(), status: z.enum(['ACTIVE', 'REVOKED', 'REPLACED', 'EXPIRED']), createdAt: datetime, expiresAt: datetime, lastClaimedAt: datetime.nullable(), canReveal: z.boolean(), unavailableReasons: z.array(z.string()) });
+export const codeBatchInput = requestInput.extend({ recipientIds: z.array(uuid).min(1).max(100).refine(ids => new Set(ids).size === ids.length) });
+export const codeBatchSchema = z.strictObject({ items: z.array(codeMetadataSchema), createdCount: count, reusedCount: count });
+export const codeRevealSchema = z.strictObject({ codeId: uuid, code: z.string().regex(/^[23456789ABCDEFGHJKLMNPQRSTUVWXYZ]{5}$/), expiresAt: datetime, scope: codeScope });
+export const codeClaimInput = z.strictObject({ code: z.string().max(64).regex(/^[A-Za-z2-9 -]+$/), claimId: uuidV4, runtimeSecret: secret });
+export const codeRecoverInput = codeClaimInput.extend({ sessionId: uuid, submissionId: uuidV4 });
+export const recoveryCodeInput = requestInput.extend({ reconcileReceipt: z.boolean().optional() });

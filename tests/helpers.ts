@@ -6,12 +6,12 @@ import { capturedMail } from '../src/modules/usuarios/invitations/invitations.ma
 import { groups } from '../src/db/schema/academic.js';
 
 export async function reset() {
-  await db.execute(sql`truncate students, groups, password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
+  await db.execute(sql`truncate task_access_limits, students, groups, password_recovery_verifications, session_activity, account_audit_events, account_email_changes, account_invitations, admin_role_requests, user_accounts, session, account, verification, jwks, "user" restart identity cascade`);
   capturedMail.length = 0;
   await bootstrapAdmin();
 }
 export async function login(email = 'admin@pilot.edu.co', password = 'TestingA123'): Promise<Record<string, string>> {
-  const response = await app.request('/api/auth/sign-in/email', { method: 'POST', headers: { origin: 'http://localhost:5173', 'content-type': 'application/json' },
+  const response = await app.request('/api/auth/sign-in/email', { method: 'POST', headers: { origin: process.env.SPA_ORIGIN ?? 'http://localhost:5173', 'content-type': 'application/json' },
     body: JSON.stringify({ email, password }) });
   if (!response.ok) throw new Error(`Login failed: ${response.status} ${await response.text()}`);
   const bearer = response.headers.get('set-auth-token');
@@ -27,7 +27,7 @@ export async function loginPair(email = 'admin@pilot.edu.co', password = 'Testin
 }
 
 export async function request(path: string, method: string, body?: unknown, headers: Record<string, string> = {}) {
-  return app.request(path, { method, headers: { origin: 'http://localhost:5173', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
+  return app.request(path, { method, headers: { origin: process.env.SPA_ORIGIN ?? 'http://localhost:5173', ...(body === undefined ? {} : { 'content-type': 'application/json' }), ...headers },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }) });
 }
 export async function inviteTeacher(email = 'teacher@pilot.edu.co') {

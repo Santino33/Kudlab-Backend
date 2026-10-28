@@ -9,6 +9,8 @@ const { startProcessor } = await import('../src/modules/evolucion/processor.js')
 await reset();
 await gameFixture();
 const stop = startProcessor(gameDependencies);
+const { startAccessCleanup } = await import('../src/modules/tareas/runtime/access-limit.js');
+const stopCleanup = startAccessCleanup();
 const server = serve({ fetch: testGameApp().fetch, port: Number(process.env.PORT ?? 4300), hostname: '127.0.0.1' });
-process.on('SIGTERM', () => { stop(); server.close(); void import('../src/db/client.js').then(({ pool }) => pool.end()); });
+process.on('SIGTERM', () => { stop(); stopCleanup(); server.close(); void import('../src/db/client.js').then(({ pool }) => pool.end()); });
 console.log('J02_SYNTHETIC_TEST_RUNNER_READY');

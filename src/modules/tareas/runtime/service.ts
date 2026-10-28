@@ -16,6 +16,9 @@ import { GameError, conflict } from './errors.js';
 import { cursorFor, cursorPosition, decryptGrant, encryptGrant, runtimeSettings } from './security.js';
 import { RULE } from '../../evolucion/tg01.js';
 import { requestInput, createInput } from './dto.js';
+import { accessCodes, accessClaims } from '../../../db/schema/access.js';
+import { accessDigest, accessSettings, codeInput, newCode, openCode, sealCode } from './access-security.js';
+import { accessLimit } from './access-limit.js';
 
 type SessionRow = typeof gameSessions.$inferSelect;
 type Capability = typeof runtimeCapabilities.$inferSelect;
@@ -74,24 +77,25 @@ export function createGameService(deps: GameDependencies = {}) {
       throw conflict('CONFIGURATION_UNSUPPORTED');
     return c;
   }
-  async function ready(tx: Tx, a: typeof assignments.$inferSelect, now: Date) {
+  async function ready(tx: Tx, a: typeof assignments.$inferSelect, now: Date, future = false) {
     const [current] = await tx.select().from(assignments).where(eq(assignments.id, a.id)).for('share');
     if (!current) throw notFound();
     a = current;
     if (a.status !== 'OPEN') throw conflict('ASSIGNMENT_CANCELLED');
-    if (now < a.startsAt || now >= a.endsAt) throw conflict('OUTSIDE_WINDOW');
+    if ((!future && now < a.startsAt) || now >= a.endsAt) throw conflict('OUTSIDE_WINDOW');
     const c = await configuration(tx, a.publishedVersionId);
     if (!c.task.isEnabled || !methodAllowed(c.rule)) throw conflict('TASK_UNAVAILABLE');
     return c;
   }
-  async function operation(tx: Tx, actor: AcademicActor, input: { requestId: string }, name: string, target: string, payload: unknown, run: () => Promise<string>) {
+  async function operation(tx: Tx, actor: AcademicActor, input: { requestId: string }, name: string, target: string, payload: unknown, run: () => Promise<string | { id: string; ids: string[]; createdCount: number }>) {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${actor.accountId + ':' + input.requestId}, 0))`);
     const fingerprint = hash({ operation: name, target, payload });
     const [old] = await tx.select().from(operationReceipts).where(and(eq(operationReceipts.actorId, actor.accountId), eq(operationReceipts.requestId, input.requestId)));
-    if (old) { if (old.requestHash !== fingerprint) throw conflict('REQUEST_CONFLICT'); return { id: old.references.id, repeated: true }; }
-    const id = await run();
-    await tx.insert(operationReceipts).values({ actorId: actor.accountId, requestId: input.requestId, operation: name, requestHash: fingerprint, references: { id } });
-    return { id, repeated: false };
+    if (old) { if (old.requestHash !== fingerprint) throw conflict('REQUEST_CONFLICT'); return { ...old.references, repeated: true }; }
+    const result = await run();
+    const references: { id: string; ids?: string[]; createdCount?: number } = typeof result === 'string' ? { id: result } : result;
+    await tx.insert(operationReceipts).values({ actorId: actor.accountId, requestId: input.requestId, operation: name, requestHash: fingerprint, references });
+    return { ...references, repeated: false };
   }
   async function assignmentDetail(tx: Tx, a: typeof assignments.$inferSelect) {
     const [version] = await tx.select().from(taskPublishedVersions).where(eq(taskPublishedVersions.id, a.publishedVersionId));
@@ -108,7 +112,7 @@ export function createGameService(deps: GameDependencies = {}) {
       if (s.groupId !== a.groupId) reasons.push('PARTICIPATION_BLOCKED');
       try { await requireParticipation(participation, tx, s.id, now); } catch { reasons.push('PARTICIPATION_BLOCKED'); }
       if (attemptsStarted >= a.maxAttempts) reasons.push('ATTEMPT_LIMIT');
-      if (active?.executionStatus === 'RUNNING') reasons.push('ACTIVE_SESSION');
+      if (active?.executionStatus === 'RUNNING' || active?.executionStatus === 'READY' && active.launchMode === 'CODE') reasons.push('ACTIVE_SESSION');
       detail.push({ id: r.id, studentId: s.id, studentDisplayName: `${s.firstName} ${s.lastName}`, studentCode: s.studentCode,
         attemptsStarted, activeSessionId: active?.id ?? null, canLaunch: reasons.length === 0, unavailableReasons: [...new Set(reasons)] });
     }
@@ -156,6 +160,8 @@ export function createGameService(deps: GameDependencies = {}) {
       if (!initial || initial.revokedAt || initial.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
       if (initial.sessionId !== sessionId) throw notFound();
       const [before] = await tx.select().from(gameSessions).where(eq(gameSessions.id, sessionId));
+      const { a } = await sessionConfig(tx, before!);
+      await tx.select().from(groups).where(eq(groups.id, a.groupId)).for('share');
       await lockStudent(tx, before!.studentId); await expire(tx, before!.studentId);
       const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, sessionId)).for('update');
       const [cap] = await tx.select().from(runtimeCapabilities).where(eq(runtimeCapabilities.id, initial.id)).for('update');
@@ -163,7 +169,206 @@ export function createGameService(deps: GameDependencies = {}) {
       return work(tx, s!, cap);
     });
   }
+  type Code = typeof accessCodes.$inferSelect;
+  const accessUnavailable = () => new GameError(403, 'ACCESS_UNAVAILABLE');
+  const aad = (c: Pick<Code, 'id' | 'recipientId' | 'scope'>) => `${c.id}:${c.scope}:${c.recipientId}`;
+  const usableCode = (c: Code, now = new Date()) => c.status === 'ACTIVE' && c.expiresAt > now;
+  async function sourceAllowed(tx: Tx, s: SessionRow, cap: Capability) {
+    const { a } = await sessionConfig(tx, s);
+    if (s.launchMode === 'CODE') {
+      const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, cap.sourceAccessCodeId ?? s.sourceAccessCodeId!)).for('share');
+      if (!c || !usableCode(c) || c.recipientId !== s.recipientId || c.scope !== 'PLAY_AND_SUBMIT') throw accessUnavailable();
+      await currentIssuer(tx, c.issuedBy, a.groupId);
+    } else {
+      const [g] = await tx.select().from(launchGrants).where(eq(launchGrants.boundCapabilityId, cap.id));
+      if (!g) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
+      await currentIssuer(tx, g.issuedBy, a.groupId);
+    }
+  }
+  async function prepare(tx: Tx, r: typeof recipients.$inferSelect, a: typeof assignments.$inferSelect, now: Date, validUntil: Date, code?: Code) {
+    const configured = await ready(tx, a, now);
+    const existing = await tx.select().from(gameSessions).where(and(eq(gameSessions.studentId, r.studentId), eq(gameSessions.taskId, a.taskId), inArray(gameSessions.executionStatus, ['READY', 'RUNNING'])));
+    if (existing[0]?.executionStatus === 'RUNNING' || existing[0] && (code || existing[0].launchMode === 'CODE' || existing[0].recipientId !== r.id)) throw conflict('ACTIVE_SESSION');
+    if (!existing[0] && configured.config.contractVersion !== '1.1') throw conflict('CONFIGURATION_UNSUPPORTED');
+    const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
+    if (count!.n >= a.maxAttempts) throw conflict('ATTEMPT_LIMIT');
+    const until = new Date(Math.min((existing[0]?.preparedAt ?? now).getTime() + 900000, a.endsAt.getTime(), validUntil.getTime(), code?.expiresAt.getTime() ?? Infinity));
+    if (existing[0]) {
+      const s = existing[0];
+      await tx.update(runtimeCapabilities).set({ revokedAt: now }).where(eq(runtimeCapabilities.sessionId, s.id));
+      await tx.update(launchGrants).set({ invalidatedAt: now }).where(eq(launchGrants.sessionId, s.id));
+      return (await tx.update(gameSessions).set({ startAllowedUntil: until }).where(eq(gameSessions.id, s.id)).returning())[0]!;
+    }
+    return (await tx.insert(gameSessions).values({ recipientId: r.id, studentId: r.studentId, taskId: a.taskId, startAllowedUntil: until,
+      launchMode: code ? 'CODE' : 'SUPERVISED', sourceAccessCodeId: code?.id ?? null }).returning())[0]!;
+  }
+  async function ownCode(tx: Tx, actor: AcademicActor, id: string) {
+    resourceId(id); const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, id)); if (!c) throw notFound();
+    const r = await recipient(tx, c.recipientId), a = await ownAssignment(tx, actor, r.assignmentId);
+    const s = await ownStudent(tx, actor, r.studentId); if (s.groupId !== a.groupId) throw notFound();
+    return { c, r, a };
+  }
+  async function codeMetadata(tx: Tx, c: Code) {
+    const now = new Date(), status = c.status === 'ACTIVE' && c.expiresAt <= now ? 'EXPIRED' : c.status;
+    const r = await recipient(tx, c.recipientId), [a] = await tx.select().from(assignments).where(eq(assignments.id, r.assignmentId));
+    const reasons: string[] = [];
+    if (status !== 'ACTIVE') reasons.push('CODE_UNAVAILABLE');
+    const [student] = await tx.select().from(students).where(eq(students.id, r.studentId));
+    if (!student || student.groupId !== a!.groupId) reasons.push('PARTICIPATION_BLOCKED');
+    try { await requireParticipation(participation, tx, r.studentId, now); } catch { reasons.push('PARTICIPATION_BLOCKED'); }
+    if (c.scope === 'PLAY_AND_SUBMIT') try { await ready(tx, a!, now, true); } catch { reasons.push('TASK_UNAVAILABLE'); }
+    return { id: c.id, recipientId: c.recipientId, scope: c.scope, sessionId: c.sessionId, status, createdAt: c.createdAt.toISOString(), expiresAt: c.expiresAt.toISOString(), lastClaimedAt: c.lastClaimedAt?.toISOString() ?? null, canReveal: !reasons.length, unavailableReasons: reasons };
+  }
+  async function issueCode(tx: Tx, actor: AcademicActor, r: typeof recipients.$inferSelect, a: typeof assignments.$inferSelect, sessionId: string | null, reuse = true) {
+    const now = new Date(), scope = sessionId ? 'SUBMIT_ONLY' as const : 'PLAY_AND_SUBMIT' as const;
+    const [student] = await tx.select().from(students).where(eq(students.id, r.studentId));
+    if (!student || student.groupId !== a.groupId) throw conflict('PARTICIPATION_BLOCKED');
+    await requireParticipation(participation, tx, r.studentId, now);
+    if (!sessionId) {
+      await ready(tx, a, now, true);
+      const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
+      if (count!.n >= a.maxAttempts) throw conflict('ATTEMPT_LIMIT');
+    }
+    await tx.update(accessCodes).set({ status: 'EXPIRED' }).where(and(eq(accessCodes.recipientId, r.id), eq(accessCodes.status, 'ACTIVE'), sql`${accessCodes.expiresAt} <= ${now}`));
+    const [active] = await tx.select().from(accessCodes).where(and(eq(accessCodes.recipientId, r.id), eq(accessCodes.scope, scope), eq(accessCodes.status, 'ACTIVE'), sessionId ? eq(accessCodes.sessionId, sessionId) : undefined));
+    if (active && reuse) return { ...active, newlyIssued: false };
+    const id = randomUUID(), expiresAt = new Date(Math.min(now.getTime() + (sessionId ? 86400000 : 604800000), sessionId ? Infinity : a.endsAt.getTime()));
+    for (let n = 0; n < 32; n++) {
+      const code = newCode(), lookupDigest = accessDigest(code), sealed = sealCode(code, aad({ id, recipientId: r.id, scope }));
+      const [inserted] = await tx.insert(accessCodes).values({ id, recipientId: r.id, scope, sessionId, lookupDigest, secretCiphertext: sealed.ciphertext, encryptionKeyId: sealed.keyId, issuedBy: actor.accountId, createdAt: now, expiresAt }).onConflictDoNothing().returning();
+      if (inserted) return { ...inserted, newlyIssued: true };
+    }
+    throw new GameError(503, 'UNAVAILABLE');
+  }
+  async function invalidateCode(tx: Tx, id: string, status: 'REVOKED' | 'REPLACED') {
+    const now = new Date();
+    await tx.update(accessCodes).set({ status, revokedAt: now }).where(and(eq(accessCodes.id, id), eq(accessCodes.status, 'ACTIVE')));
+    const prepared = await tx.select({ id: gameSessions.id }).from(gameSessions).where(and(eq(gameSessions.sourceAccessCodeId, id), eq(gameSessions.executionStatus, 'READY')));
+    for (const s of prepared) {
+      await tx.update(runtimeCapabilities).set({ revokedAt: now }).where(eq(runtimeCapabilities.sessionId, s.id));
+      await tx.update(gameSessions).set({ executionStatus: 'EXPIRED' }).where(eq(gameSessions.id, s.id));
+    }
+  }
   return {
+    async generateCodes(actor: AcademicActor, id: string, payload: unknown) {
+      accessSettings();
+      const input = requestInput.extend({ recipientIds: z.array(uuid).min(1).max(100).refine(ids => new Set(ids).size === ids.length) }).parse(payload);
+      return withAcademicAccess(actor, async tx => {
+        const a = await ownAssignment(tx, actor, id);
+        const op = await operation(tx, actor, input, 'ACCESS_BATCH', id, { recipientIds: [...input.recipientIds].sort() }, async () => {
+          const rows = [];
+          for (const rid of input.recipientIds) { const r = await recipient(tx, rid); if (r.assignmentId !== a.id) throw notFound(); await ownStudent(tx, actor, r.studentId); rows.push(r); }
+          const ids = []; let createdCount = 0;
+          for (const r of rows.sort((x, y) => x.studentId.localeCompare(y.studentId))) { await lockStudent(tx, r.studentId); const c = await issueCode(tx, actor, r, a, null); ids.push(c.id); if (c.newlyIssued) createdCount++; }
+          return { id: ids[0]!, ids, createdCount };
+        });
+        const codes = await tx.select().from(accessCodes).where(inArray(accessCodes.id, op.ids ?? [op.id])).orderBy(asc(accessCodes.id));
+        const items = []; for (const c of codes) { await ownCode(tx, actor, c.id); items.push(await codeMetadata(tx, c)); }
+        const createdCount = op.createdCount!;
+        return { repeated: op.repeated, detail: { items, createdCount, reusedCount: items.length - createdCount } };
+      });
+    },
+    async listCodes(actor: AcademicActor, id: string, paging: Paging) {
+      accessSettings(); return withAcademicAccess(actor, async tx => {
+        await ownAssignment(tx, actor, id); const filter = `codes:${id}`, position = datePosition(paging.cursor, filter);
+        const rows = await tx.select({ c: accessCodes }).from(accessCodes).innerJoin(recipients, eq(recipients.id, accessCodes.recipientId)).where(and(eq(recipients.assignmentId, id), position ? sql`(${accessCodes.createdAt}, ${accessCodes.id}) < (${position.at}::timestamptz, ${position.id}::uuid)` : undefined)).orderBy(desc(accessCodes.createdAt), desc(accessCodes.id)).limit(paging.limit + 1);
+        const page = rows.slice(0, paging.limit), items = []; for (const { c } of page) items.push(await codeMetadata(tx, c));
+        const last = page.at(-1)?.c;
+        return { items, nextCursor: rows.length > paging.limit ? cursorFor(filter, { at: last!.createdAt.toISOString(), id: last!.id }) : null };
+      });
+    },
+    async revealCode(actor: AcademicActor, id: string, payload: unknown) {
+      accessSettings(); z.strictObject({}).parse(payload);
+      return withAcademicAccess(actor, async tx => {
+        const { c: before } = await ownCode(tx, actor, id);
+        const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, before.id)).for('share');
+        if (!(await codeMetadata(tx, c!)).canReveal) throw conflict('CODE_UNAVAILABLE');
+        return { codeId: c!.id, code: openCode(c!.secretCiphertext, c!.encryptionKeyId, aad(c!)), expiresAt: c!.expiresAt.toISOString(), scope: c!.scope };
+      });
+    },
+    async mutateCode(actor: AcademicActor, id: string, payload: unknown, replace: boolean) {
+      accessSettings(); const input = requestInput.parse(payload);
+      return withAcademicAccess(actor, async tx => {
+        const { r, a } = await ownCode(tx, actor, id);
+        const op = await operation(tx, actor, input, replace ? 'ACCESS_REPLACE' : 'ACCESS_REVOKE', id, {}, async () => {
+          await lockStudent(tx, r.studentId);
+          const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, id)).for('update');
+          if (replace && !usableCode(c!)) throw conflict('CODE_UNAVAILABLE');
+          await invalidateCode(tx, id, replace ? 'REPLACED' : 'REVOKED');
+          if (!replace) return id;
+          const next = await issueCode(tx, actor, r, a, c!.sessionId, false);
+          await tx.update(accessCodes).set({ replacedById: next.id }).where(eq(accessCodes.id, id)); return next.id;
+        });
+        const { c } = await ownCode(tx, actor, op.id); return { repeated: op.repeated, detail: await codeMetadata(tx, c) };
+      });
+    },
+    async recoveryCode(actor: AcademicActor, id: string, payload: unknown) {
+      accessSettings(); const input = requestInput.extend({ reconcileReceipt: z.boolean().optional() }).parse(payload);
+      return withAcademicAccess(actor, async tx => {
+        const { s, a } = await ownSession(tx, actor, id), r = await recipient(tx, s.recipientId);
+        const op = await operation(tx, actor, input, 'ACCESS_RECOVERY', id, { reconcileReceipt: input.reconcileReceipt ?? false }, async () => {
+          await lockStudent(tx, s.studentId);
+          if (s.attemptNumber === null) throw conflict('SESSION_NOT_STARTED');
+          const [receipt] = await tx.select().from(resultReceipts).where(eq(resultReceipts.sessionId, id));
+          if (receipt && !input.reconcileReceipt) throw conflict('RESULTS_RECEIVED');
+          return (await issueCode(tx, actor, r, a, id)).id;
+        });
+        const { c } = await ownCode(tx, actor, op.id); return { repeated: op.repeated, detail: await codeMetadata(tx, c) };
+      });
+    },
+    async accessClaim(payload: unknown, recovery = false) {
+      accessSettings();
+      const base = z.strictObject({ code: codeInput, claimId: uuidV4, runtimeSecret: secret });
+      const input: z.infer<typeof base> & { sessionId?: string; submissionId?: string } = recovery ? base.extend({ sessionId: uuid, submissionId: uuidV4 }).parse(payload) : base.parse(payload);
+      const digest = accessDigest(input.code), fingerprint = secretDigest(input.runtimeSecret);
+      const [previous] = await db.select({ claim: accessClaims, cap: runtimeCapabilities, code: accessCodes }).from(accessClaims).innerJoin(runtimeCapabilities, eq(runtimeCapabilities.id, accessClaims.capabilityId)).innerJoin(accessCodes, eq(accessCodes.id, accessClaims.codeId)).where(eq(accessClaims.claimId, input.claimId));
+      if (!previous || previous.cap.secretDigest !== fingerprint || previous.code.lookupDigest !== digest) {
+        const wait = await accessLimit(input.code, 'code', Date.now(), hash({ claimId: input.claimId, fingerprint, recovery, sessionId: input.sessionId ?? null, submissionId: input.submissionId ?? null }));
+        if (wait) throw new GameError(429, 'RATE_LIMITED', undefined, wait);
+      }
+      try { return await db.transaction(async tx => {
+        await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${input.claimId}, 0))`);
+        const [initial] = await tx.select().from(accessCodes).where(eq(accessCodes.lookupDigest, digest)); if (!initial) throw accessUnavailable();
+        const r = await recipient(tx, initial.recipientId), [a] = await tx.select().from(assignments).where(eq(assignments.id, r.assignmentId));
+        await tx.select().from(groups).where(eq(groups.id, a!.groupId)).for('share');
+        await lockStudent(tx, r.studentId); await expire(tx, r.studentId);
+        const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, initial.id)).for('update');
+        const now = new Date(); if (!usableCode(c!)) throw accessUnavailable();
+        await currentIssuer(tx, c!.issuedBy, a!.groupId);
+        const eligibility = await requireParticipation(participation, tx, r.studentId, now);
+        const [student] = await tx.select().from(students).where(eq(students.id, r.studentId)); if (student!.groupId !== a!.groupId) throw accessUnavailable();
+        const [old] = await tx.select().from(accessClaims).where(eq(accessClaims.claimId, input.claimId));
+        if (old) {
+          const [cap] = await tx.select().from(runtimeCapabilities).where(eq(runtimeCapabilities.id, old.capabilityId));
+          if (old.codeId !== c!.id || cap!.secretDigest !== fingerprint || old.submissionId !== (input.submissionId ?? null) || recovery && old.sessionId !== input.sessionId || cap!.revokedAt || cap!.expiresAt <= now) throw accessUnavailable();
+          const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, old.sessionId));
+          if (s!.executionStatus === 'READY') { await ready(tx, a!, now); if (s!.startAllowedUntil <= now) throw accessUnavailable(); }
+          return context(tx, s!, cap!);
+        }
+        let s: SessionRow;
+        if (recovery) {
+          const [row] = await tx.select().from(gameSessions).where(eq(gameSessions.id, input.sessionId!)).for('update');
+          if (!row || row.recipientId !== r.id || row.attemptNumber === null || c!.scope === 'SUBMIT_ONLY' && c!.sessionId !== row.id) throw accessUnavailable();
+          if (c!.scope === 'PLAY_AND_SUBMIT') await ready(tx, a!, now);
+          const [receipt] = await tx.select().from(resultReceipts).where(eq(resultReceipts.sessionId, row.id));
+          if (receipt && receipt.submissionId !== input.submissionId) throw accessUnavailable();
+          s = row;
+        } else {
+          if (c!.scope !== 'PLAY_AND_SUBMIT') throw accessUnavailable();
+          s = await prepare(tx, r, a!, now, eligibility.validUntil, c!);
+        }
+        const [cap] = await tx.insert(runtimeCapabilities).values({ sessionId: s.id, claimId: input.claimId, secretDigest: fingerprint, sourceAccessCodeId: c!.id,
+          canStart: !recovery, canSubmit: recovery, canReadReceipt: true, startAllowedUntil: s.startAllowedUntil,
+          expiresAt: recovery ? new Date(Math.min(now.getTime() + 86400000, c!.expiresAt.getTime())) : s.startAllowedUntil, submissionId: input.submissionId ?? null }).returning();
+        await tx.insert(accessClaims).values({ claimId: input.claimId, codeId: c!.id, capabilityId: cap!.id, sessionId: s.id, submissionId: input.submissionId ?? null });
+        await tx.update(accessCodes).set({ lastClaimedAt: now }).where(eq(accessCodes.id, c!.id));
+        return context(tx, s, cap!);
+      }); } catch (error) {
+        if (error instanceof GameError && (error.status === 503 || error.status === 429)) throw error;
+        if (error instanceof GameError || error && typeof error === 'object' && 'status' in error || (error as { cause?: { code?: string } })?.cause?.code === '23505') throw accessUnavailable();
+        throw error;
+      }
+    },
     async createAssignment(actor: AcademicActor, payload: unknown) {
       const input = createInput.parse(payload), { requestId, ...content } = input;
       return withAcademicAccess(actor, async tx => {
@@ -220,22 +425,7 @@ export function createGameService(deps: GameDependencies = {}) {
             const [receipt] = await tx.select().from(resultReceipts).where(eq(resultReceipts.sessionId, s.id));
             if (receipt && receipt.submissionId !== input.submissionId) throw conflict('RESULT_CONFLICT');
           } else {
-            const configured = await ready(tx, a, now);
-            const existing = await tx.select().from(gameSessions).where(and(eq(gameSessions.studentId, r.studentId), eq(gameSessions.taskId, a.taskId), inArray(gameSessions.executionStatus, ['READY', 'RUNNING'])));
-            if (existing[0]?.executionStatus === 'RUNNING') throw conflict('ACTIVE_SESSION');
-            if (existing[0] && existing[0].recipientId !== r.id) throw conflict('ACTIVE_SESSION');
-            if (!existing[0] && configured.config.contractVersion !== '1.1') throw conflict('CONFIGURATION_UNSUPPORTED');
-            const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
-            if (count!.n >= a.maxAttempts) throw conflict('ATTEMPT_LIMIT');
-            const until = new Date(Math.min((existing[0]?.preparedAt ?? now).getTime() + 900000, a.endsAt.getTime(), eligibility.validUntil.getTime()));
-            if (existing[0]) {
-              s = existing[0];
-              await tx.update(runtimeCapabilities).set({ revokedAt: now }).where(eq(runtimeCapabilities.sessionId, s.id));
-              await tx.update(launchGrants).set({ invalidatedAt: now }).where(eq(launchGrants.sessionId, s.id));
-              [s] = await tx.update(gameSessions).set({ startAllowedUntil: until }).where(eq(gameSessions.id, s.id)).returning() as [SessionRow];
-            } else {
-              [s] = await tx.insert(gameSessions).values({ recipientId: r.id, studentId: r.studentId, taskId: a.taskId, startAllowedUntil: until }).returning() as [SessionRow];
-            }
+            s = await prepare(tx, r, a, now, eligibility.validUntil);
           }
           const id = randomUUID(), token = randomBytes(32).toString('base64url'), sealed = encryptGrant(token, `${s.id}:${id}`);
           await tx.insert(launchGrants).values({ id, sessionId: s.id, scope: recovery ? 'RECOVER_SUBMISSION' : 'START_SESSION',
@@ -254,6 +444,8 @@ export function createGameService(deps: GameDependencies = {}) {
         const [initial] = await tx.select().from(launchGrants).where(eq(launchGrants.secretDigest, digest));
         if (!initial || initial.invalidatedAt) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
         const [before] = await tx.select().from(gameSessions).where(eq(gameSessions.id, initial.sessionId));
+        const { a: assignment } = await sessionConfig(tx, before!);
+        await tx.select().from(groups).where(eq(groups.id, assignment.groupId)).for('share');
         await lockStudent(tx, before!.studentId); await expire(tx, before!.studentId);
         const [g] = await tx.select().from(launchGrants).where(eq(launchGrants.id, initial.id)).for('update');
         const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, initial.sessionId)).for('update');
@@ -282,9 +474,8 @@ export function createGameService(deps: GameDependencies = {}) {
     async context(id: string, token: string) {
       return authenticated(id, token, async (tx, s, cap) => {
         if (s.executionStatus === 'READY') {
-          const { a } = await sessionConfig(tx, s), [g] = await tx.select().from(launchGrants).where(eq(launchGrants.boundCapabilityId, cap.id));
-          if (!g) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
-          await currentIssuer(tx, g.issuedBy, a.groupId); await ready(tx, a, new Date()); await requireParticipation(participation, tx, s.studentId, new Date());
+          const { a } = await sessionConfig(tx, s);
+          await sourceAllowed(tx, s, cap); await ready(tx, a, new Date()); await requireParticipation(participation, tx, s.studentId, new Date());
         }
         return context(tx, s, cap);
       });
@@ -295,9 +486,8 @@ export function createGameService(deps: GameDependencies = {}) {
         const now = new Date();
         if (!cap.canStart || !['READY', 'RUNNING'].includes(s.executionStatus)) throw new GameError(409, 'SESSION_NOT_STARTABLE');
         const { a } = await sessionConfig(tx, s);
-        const [grant] = await tx.select().from(launchGrants).where(eq(launchGrants.boundCapabilityId, cap.id));
-        if (!grant) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
-        await currentIssuer(tx, grant.issuedBy, a.groupId);
+        if (s.executionStatus === 'READY') await sourceAllowed(tx, s, cap);
+        else if (s.launchMode === 'SUPERVISED') await sourceAllowed(tx, s, cap);
         const eligibility = await requireParticipation(participation, tx, s.studentId, now);
         await ready(tx, a, now);
         if (s.executionStatus === 'RUNNING') {

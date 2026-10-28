@@ -21,7 +21,9 @@ export async function gameFixture() {
   const academic = await academicFixture();
   const [student] = await db.insert(students).values({ groupId: academic.aGroups[0]!.id, studentCode: 'J02-FICTICIO-A', firstName: 'Participante', lastName: 'Sintético A', isActive: true }).returning();
   authorizations.set(student!.id, new Date(Date.now() + 86400000));
+  const [secondStudent] = await db.insert(students).values({ groupId: academic.aGroups[0]!.id, studentCode: 'J03-FICTICIO-B', firstName: 'Participante', lastName: 'Sintético B', isActive: true }).returning();
+  authorizations.set(secondStudent!.id, new Date(Date.now() + 86400000));
   const versionId = await publishTg01();
   await db.update(tasks).set({ isEnabled: true }).where(eq(tasks.id, 'TG-01'));
-  return { ...academic, student: student!, versionId };
+  return { ...academic, student: student!, secondStudent: secondStudent!, versionId };
 }

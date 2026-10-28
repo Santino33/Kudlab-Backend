@@ -1,5 +1,12 @@
 # Kudlab Backend
 
+**J-03:** códigos individuales de **5 caracteres alfanuméricos**, gestión docente,
+canje público y recuperación sobre el mismo runtime. Migración aditiva 0012 y
+límites compartidos en PostgreSQL. OpenAPI: **58 operaciones/12 tags**; artefacto
+canónico 1.2.0, sin cambiar sobres 1.0/1.1 ni fórmulas. Uso real sigue bloqueado.
+[Operación y preparación](docs/acceso-codigo.md) · [Verificación y límites](docs/acceso-codigo-verificacion.md).
+Las cifras/exclusiones de J-02 siguientes conservan el estado de su entrega anterior.
+
 **J-02 (2026-10-27):** asignación supervisada de TG-01, capacidades runtime 1.0/1.1,
 ingesta idempotente, procesamiento recuperable y consulta individual. OpenAPI:
 50 operaciones/11 tags. **Entrega técnica con datos ficticios y BD aislada**;
