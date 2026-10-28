@@ -8,3 +8,10 @@ dist/
 build/
 Dockerfile*
 .dockerignore
+.opencode
+.agents
+.specify
+specs
+tests
+test-results
+playwright-report
