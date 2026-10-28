@@ -3,7 +3,7 @@ import { GameError } from '../../tareas/runtime/errors.js';
 
 export type Participation = (tx: AcademicTransaction, studentId: string, at: Date) => Promise<
   { status: 'ALLOWED'; authorizationReference: string; validUntil: Date } | { status: 'DENIED' | 'UNAVAILABLE' }>;
-export type GameDependencies = { testParticipation?: Participation };
+export type GameDependencies = { testParticipation?: Participation; testActiveStudents?: boolean };
 export function assertTestDatabase() {
   const url = new URL(process.env.DATABASE_URL ?? 'https://invalid');
   if (process.env.NODE_ENV !== 'test' || !/^\/kudlab_j02_[a-z0-9_]*test$/.test(url.pathname))

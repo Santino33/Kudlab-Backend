@@ -1,5 +1,7 @@
 # Contrato HTTP: operaciones sobre estudiantes
 
+**Variante aislada de pruebas (2026-10-28 UTC):** el [runner sintético](../../../docs/pruebas-estudiantes-play.md) devuelve `isActive=true` al registrar para probar Play. Es composición interna protegida, no una opción HTTP. Este documento conserva el contrato del arranque normal (`isActive=false`).
+
 Estado: contrato implementado y probado localmente, no despliegue productivo. Consumidor: cliente del docente; proveedor: Académico. No cambia los contratos de Usuarios. Vinculado a FR-001–012 de [spec.md](../spec.md).
 
 ## Reglas comunes

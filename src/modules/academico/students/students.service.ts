@@ -5,6 +5,7 @@ import { notFound, invalidInput } from '../shared/academic.errors.js';
 import { academicScopeProvider } from '../shared/scope-provider.js';
 import { authorizeScope } from '../../usuarios/shared/scope-authorization.js';
 import { createGroupId, parseStudentCreate, parseStudentPatch, studentId } from './students.validation.js';
+import { assertTestDatabase } from '../shared/participation.js';
 
 export function presentStudent(row: typeof students.$inferSelect) {
   return { id: row.id, groupId: row.groupId, studentCode: row.studentCode,
@@ -18,11 +19,12 @@ async function ownGroup(tx: AcademicTransaction, actor: AcademicActor, id: strin
   if (!decision.allowed) throw notFound();
   return group;
 }
-export async function createStudent(actor: AcademicActor, payload: unknown) {
+export async function createStudent(actor: AcademicActor, payload: unknown, testActiveStudents = false) {
+  if (testActiveStudents) assertTestDatabase();
   return withAcademicAccess(actor, async (tx) => {
     await ownGroup(tx, actor, createGroupId(payload));
     const input = parseStudentCreate(payload);
-    const [created] = await tx.insert(students).values({ ...input, isActive: false }).returning();
+    const [created] = await tx.insert(students).values({ ...input, isActive: testActiveStudents }).returning();
     return presentStudent(created!);
   });
 }
