@@ -1,5 +1,16 @@
 # Kudlab Backend
 
+## Docker local
+
+Este checkout incluye `Dockerfile` para Node 24 sin usuario root y `.dockerignore`.
+La composición de los tres proyectos se arranca desde Kudlab Frontend con
+`npm run docker:setup -- /ruta/a/este/backend /ruta/a/Play` y `npm run docker:up`.
+El backend espera PostgreSQL, aplica migraciones y ejecuta el bootstrap normal;
+no inyecta participación sintética ni habilita partidas. PostgreSQL y secretos
+deben ser propios del entorno local, nunca una base compartida/de producción.
+Consultar `docs/docker-local.md` del frontend para correo pendiente, persistencia,
+puertos, configuración y evidencia. Este cambio no añade rutas ni cambia reglas API.
+
 **J-03:** códigos individuales de **5 caracteres alfanuméricos**, gestión docente,
 canje público y recuperación sobre el mismo runtime. Migración aditiva 0012 y
 límites compartidos en PostgreSQL. OpenAPI: **58 operaciones/12 tags**; artefacto
