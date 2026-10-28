@@ -1,5 +1,7 @@
 # Cursos (grupos) y estudiantes por curso
 
+**Ampliación posterior para pruebas (2026-10-28 UTC):** la [composición sintética](../../pruebas-estudiantes-play.md) permite altas activas para probar Play. La composición normal conserva el contrato inactivo descrito aquí; no es consentimiento real.
+
 2026-10-26. Extensión autorizada expresamente por el responsable después del PR frontend de mejora de interfaz. Base backend c989fae; frontend 2a79f94. Fuente normativa de estas decisiones: conversación, no RF V3 propuestos.
 
 ## Decisiones confirmadas

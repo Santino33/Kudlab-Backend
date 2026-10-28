@@ -1,5 +1,7 @@
 # J-02 · Integración supervisada con Kudlab Play
 
+**Actualización de la vista de pruebas (2026-10-28 UTC):** `tests/game-server.ts` usa [participación sintética de registros activos y altas activas](pruebas-estudiantes-play.md), también para estudiantes nuevos. El runner normal de suites conserva autorizaciones explícitas por ID para probar revocación. El arranque normal sigue sin otorgar participación real.
+
 **Ampliación posterior J-03:** la vía supervisada se conserva. La guía actual de
 códigos, configuración y artefacto aditivo 1.2.0 está en [acceso por código](acceso-codigo.md).
 Las cifras de 50 operaciones/sin códigos inferiores describen la entrega J-02;
