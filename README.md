@@ -25,11 +25,11 @@ ingesta idempotente, procesamiento recuperable y consulta individual. OpenAPI:
 la composición normal no concede consentimiento/participación. Sin J-03.
 [Integración, ejecución y límites](docs/integracion-play.md).
 
-**Cursos, ampliación de esta rama (2026-10-26):** CRUD ADMIN de cursos y asignación de profesor, consulta propia TEACHER y listado de estudiantes por curso. Transferencia confirmada conserva registros y cambia el acceso actual; solo se eliminan cursos sin estudiantes, incluidos inactivos. ADMIN no recibe acceso a registros estudiantiles. Reutiliza `groups`, sin migración ni dependencia nueva. [Contrato, fuentes y evidencia](docs/feature-specs/academico/02-cursos.md). OpenAPI actual: 35 operaciones/9 tags; las exclusiones históricas de grupos siguientes ya no aplican.
+**Cursos:** CRUD ADMIN de cursos y asignación de profesor, consulta propia TEACHER y listado de estudiantes por curso. Transferencia confirmada conserva registros y cambia el acceso actual; solo se eliminan cursos sin estudiantes, incluidos inactivos. ADMIN no recibe acceso a registros estudiantiles. El contrato actual está en [OpenAPI](docs/api/openapi.yaml).
 
 API del prototipo piloto Kudlab, una herramienta de apoyo al seguimiento pedagógico de estudiantes de tercero del Colegio San Diego (Duitama). El proyecto busca reunir observaciones docentes, notas escolares y resultados de tareas digitales para consultar la evolución de cada estudiante. No sustituye una evaluación curricular ni produce diagnósticos clínicos.
 
-El diseño documenta cinco áreas: Usuarios, Académico, Tareas, Evolución y Seguimiento. Este backend implementa Usuarios y cinco operaciones de registro, listado, consulta, corrección e inactivación de estudiantes en Académico. **Los profesores operan esos registros; los estudiantes no acceden ni tienen cuentas en este backend.** Los demás recursos académicos, Tareas, Evolución y Seguimiento siguen fuera del catálogo HTTP actual. Consulta el [contexto del proyecto](docs/agent-context/project-context.md), el [mapa de módulos](docs/agent-context/INDEX.md) y la [arquitectura documentada](docs/agent-context/architecture-summary.md).
+El diseño distingue Usuarios, Académico, Tareas, Evolución y Seguimiento. **Los profesores operan los registros estudiantiles; los estudiantes no tienen cuentas docentes.** La disponibilidad HTTP se consulta en el [OpenAPI actual](docs/api/openapi.yaml), no se infiere del diseño histórico de módulos.
 
 ## Tecnologías y requisitos
 
@@ -37,8 +37,8 @@ El diseño documenta cinco áreas: Usuarios, Académico, Tareas, Evolución y Se
 ficha de Tareas para ADMIN/TEACHER activos, sin ejecutar ni asignar juegos.
 TG-01 se registra deshabilitada, sin integración comprobada ni versión publicada.
 El catálogo OpenAPI pasa a **28 operaciones**; las menciones históricas de Tareas
-fuera de HTTP/26 operaciones describen la base anterior. Ver
-[spec, fuentes y verificación](docs/feature-specs/tareas/01-catalogo-y-ficha.md).
+fuera de HTTP/26 operaciones describen la base anterior. Consultar el
+[contrato actual](docs/api/openapi.yaml) y la [integración Play](docs/integracion-play.md).
 
 - Node.js 24 y npm (el proyecto exige `>=24 <25`).
 - PostgreSQL accesible desde la máquina donde se ejecuta la API.
@@ -82,7 +82,7 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 1. Elige una cuenta remitente de Gmail o Workspace con permiso para enviar. En tu cuenta de Google, habilita la verificación en dos pasos y crea una contraseña de aplicación **si la cuenta lo permite**. Si la opción está bloqueada, consulta al administrador antes de cambiar mecanismo; esta integración no implementa OAuth.
 2. Configura en el `.env` local ignorado o gestor de secretos `MAIL_MODE=smtp`, `MAIL_HOST=smtp.gmail.com`, `MAIL_PORT=465`, `MAIL_USER` y `MAIL_FROM` con la dirección completa elegida, y `MAIL_PASSWORD` con la contraseña de aplicación. No uses la contraseña habitual ni compartas secretos en el chat. El puerto 587 también funciona con STARTTLS obligatorio. No hay opción de TLS inseguro; el nombre DNS debe coincidir con el certificado.
 3. Completa las tres URLs SPA descritas arriba. Para actualizar un despliegue anterior, agrega `EMAIL_CHANGE_BASE_URL` antes de reiniciar: configuración incompleta impide el arranque con un aviso que identifica el ajuste, no su valor. Una caída del proveedor no bloquea el arranque, aunque sí puede impedir los envíos.
-4. Sigue la [guía de validación SMTP](specs/005-smtp-mailing/quickstart.md) con buzones controlados y autorización explícita antes del primer envío real. La cuenta remitente puede ser Gmail personal; las cuentas destinatarias del piloto conservan la política institucional `.edu.co`. No se modifica esa política para facilitar las pruebas.
+4. Para el primer envío real, usar buzones controlados y autorización explícita; registrar aceptación SMTP y recepción por separado, sin guardar direcciones, cuerpos ni tokens en evidencias. La cuenta remitente puede ser Gmail personal; las cuentas destinatarias del piloto conservan la política institucional `.edu.co`. No se modifica esa política para facilitar las pruebas. Las pruebas SMTP automatizadas usan las fixtures sintéticas del repositorio.
 
 El sistema envía texto en español para invitación, cambio de correo y recuperación. `ENVIADA` significa **aceptada por el servidor SMTP**, no llegada a bandeja de entrada ni lectura. `PENDIENTE` también puede representar un resultado incierto. Un `503 DELIVERY_STATUS_UNKNOWN` no autoriza un reintento automático: consulta la cuenta existente antes de repetir un alta; no se duplican cuentas ni se activan por enviar un correo. Recuperación mantiene su respuesta pública neutra, pero no promete ocultar diferencias de tiempo.
 
@@ -105,7 +105,7 @@ npm run docs:check
 
 ## API y documentación
 
-El catálogo canónico es [`docs/api/openapi.yaml`](docs/api/openapi.yaml), OpenAPI 3.1.0: **26 operaciones implementadas**, 21 de Usuarios/autenticación y cinco sobre estudiantes realizadas por profesores. Incluye parámetros, cuerpos, respuestas, errores, permisos y ejemplos sintéticos/no operativos. Los contratos anteriores de `specs/001…005/contracts/` conservan su condición histórica; no copiar propuestas como disponibilidad actual.
+El catálogo canónico es [`docs/api/openapi.yaml`](docs/api/openapi.yaml), OpenAPI 3.1.0: **58 operaciones**. Incluye parámetros, cuerpos, respuestas, errores, permisos y ejemplos sintéticos/no operativos. Los contratos históricos consumidos por regresión permanecen en [`tests/fixtures/openapi/`](tests/fixtures/openapi/README.md); no son una segunda fuente operativa.
 
 Con `NODE_ENV=development` o `NODE_ENV=test` explícitos:
 
@@ -120,9 +120,9 @@ La UI no ejecuta peticiones de negocio (“Try it out” deshabilitado), no cont
 ### Actualizar y verificar
 
 1. Contrastar cambios con `src/app.ts`, lista blanca de autenticación, routers, validadores, servicios y pruebas: documentar únicamente lo implementado.
-2. Actualizar el YAML canónico y, si cambia el alcance autorizado en otra feature, el [inventario y mapa de operaciones](specs/006-api-swagger-docs/contracts/documentation.md). No mantener una segunda copia operativa. Reiniciar el proceso tras cambiar el YAML: se carga una vez al construir el router, no en cada petición.
+2. Actualizar el YAML canónico y, solo cuando cambie el alcance autorizado, revisar la lista independiente `tests/fixtures/openapi/operations.json`. No generar las expectativas automáticamente desde el mismo YAML bajo prueba. Reiniciar el proceso tras cambiar el YAML: se carga una vez al construir el router, no en cada petición.
 3. Ejecutar `npm run docs:check`: valida estructura OpenAPI completa, referencias internas, IDs, ejemplos/esquemas y publicación por entorno; no importa app/bootstrap ni necesita BD. También comprueba mutaciones negativas del contrato.
 4. Ejecutar `npm run typecheck` y contratos/regresión con BD exclusiva. Las respuestas reales deben validar contra el documento; no cambies el negocio para ajustarlo a un supuesto documental.
 5. Abrir `/docs` y expandir una operación por tag; comprobar esquemas, seguridad y ejemplos, consola sin errores, solo tres peticiones locales de recursos y cero solicitudes de negocio/exteriores. Separar ese resultado de la validación documental y HTTP.
 
-Guía reproducible: [quickstart](specs/006-api-swagger-docs/quickstart.md). Evidencia y limitaciones de entrega: [validation.md](specs/006-api-swagger-docs/validation.md). El [índice documental](docs/agent-context/INDEX.md) mantiene separados diseño y código disponible.
+Las verificaciones de tipos, documentación y regresión descritas arriba se ejecutan desde un checkout limpio con `npm ci`. La planificación y configuración personal de agentes no son requisitos de ejecución ni se distribuyen con el repositorio.

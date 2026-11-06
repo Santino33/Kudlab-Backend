@@ -9,8 +9,8 @@ import { beforeEach } from 'vitest';
 import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { login, request, reset } from '../helpers.js';
 
-const spec = parse(readFileSync('specs/001-gestionar-cuentas-roles/contracts/accounts.openapi.yaml', 'utf8'));
-const profileSpec = parse(readFileSync('specs/002-validar-perfil-acceso/contracts/validation.openapi.yaml', 'utf8'));
+const spec = parse(readFileSync('tests/fixtures/openapi/accounts.openapi.yaml', 'utf8'));
+const profileSpec = parse(readFileSync('tests/fixtures/openapi/validation.openapi.yaml', 'utf8'));
 const validator = new Ajv2020({ strict: false, allErrors: true });
 (addFormatsModule as unknown as FormatsPlugin)(validator);
 
