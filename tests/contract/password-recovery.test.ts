@@ -13,7 +13,7 @@ import { inviteTeacher, login, request, reset } from '../helpers.js';
 const start = (email: string) => request('/api/v1/auth/password-recovery/request', 'POST', { email });
 const finish = (token: string, newPassword: string) =>
   request('/api/v1/auth/password-recovery/confirm', 'POST', { token, newPassword });
-const contract = parse(readFileSync('specs/003-autenticar-usuarios/contracts/auth.openapi.yaml', 'utf8'));
+const contract = parse(readFileSync('tests/fixtures/openapi/auth.openapi.yaml', 'utf8'));
 const validator = new Ajv2020({ strict: false });
 (addFormatsModule as unknown as FormatsPlugin)(validator);
 async function matches(path: string, response: Response) {

@@ -14,3 +14,19 @@ build/
 !/tests/fixtures/smtp/server-key.pem
 coverage/
 *.log
+
+# Personal agent tooling and planning are local, never application dependencies.
+/AGENTS.md
+/CLAUDE.md
+/.claude
+/.agents
+/.opencode
+/.specify
+/.mcp.json
+/opencode.json
+/opencode.jsonc
+/skills-lock.json
+/specs
+/docs/agent-context
+/docs/feature-specs
+/docs/original
