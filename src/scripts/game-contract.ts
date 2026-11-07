@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 import { parseDocument } from 'yaml';
 import { z } from 'zod';
 import { configSchema, contextSchema, envelopeSchema, receiptSchema, startResponseSchema, trialSchema, incidentSchema, uuid, uuidV4, secret, PROFILE, hash } from '../modules/tareas/runtime/contract.js';
-import { assignmentSchema, assignmentSummarySchema, grantSchema, sessionSummarySchema, sessionDetailSchema, page, createInput, requestInput } from '../modules/tareas/runtime/dto.js';
+import { assignmentSchema, assignmentSummarySchema, studentAssignmentSchema, grantSchema, sessionSummarySchema, sessionDetailSchema, page, createInput, requestInput } from '../modules/tareas/runtime/dto.js';
 import { codeMetadataSchema, codeBatchInput, codeBatchSchema, codeRevealSchema, codeClaimInput, codeRecoverInput, recoveryCodeInput } from '../modules/tareas/runtime/dto.js';
 
 const sha = (v: string) => createHash('sha256').update(v).digest('hex');
@@ -45,7 +45,9 @@ for (const target of ['contract/runtime-1.2.0', ...process.argv.slice(2)]) {
 }
 
 const path = 'docs/api/openapi.yaml', text = await readFile(path, 'utf8'), doc = parseDocument(text);
-for (const [name, schema] of Object.entries(artifact)) doc.setIn(['components', 'schemas', name], schema);
+// OpenAPI-only teacher schemas: not part of the runtime artifact consumed by Play.
+const teacherSchemas = { StudentAssignmentPage: jsonSchema(page(studentAssignmentSchema)) };
+for (const [name, schema] of Object.entries({ ...artifact, ...teacherSchemas })) doc.setIn(['components', 'schemas', name], schema);
 doc.setIn(['components', 'securitySchemes', 'runtimeCapability'], { type: 'http', scheme: 'bearer', description: 'Secreto de runtime limitado a una sesión. Nunca sesión docente ni JWT.' });
 const ref = (name: string) => ({ $ref: `#/components/schemas/${name}` });
 const response = (name: string) => ({ description: 'Respuesta confirmada; no-store.', headers: { 'Cache-Control': { schema: { type: 'string', const: 'no-store' } } }, content: { 'application/json': { schema: ref(name) } } });
@@ -63,6 +65,7 @@ const definitions = [
   ['get', '/api/v1/task-assignments/{id}', 'getTaskAssignment', 'Consultar asignación', '', 'Assignment', 200],
   ['post', '/api/v1/task-assignments/{id}/cancel', 'cancelTaskAssignment', 'Cancelar nuevos inicios', 'OperationRequest', 'Assignment', 200],
   ['post', '/api/v1/task-assignment-recipients/{id}/launch-grants', 'createLaunchGrant', 'Preparar inicio supervisado', 'OperationRequest', 'LaunchGrant', 201],
+  ['get', '/api/v1/students/{id}/task-assignments', 'listStudentTaskAssignments', 'Consultar asignaciones de un estudiante', '', 'StudentAssignmentPage', 200],
   ['get', '/api/v1/students/{id}/task-sessions', 'listStudentTaskSessions', 'Consultar sesiones individuales', '', 'SessionPage', 200],
   ['get', '/api/v1/task-sessions/{id}', 'getTaskSession', 'Consultar evidencia e indicadores disponibles', '', 'SessionDetail', 200],
   ['get', '/api/v1/task-sessions/{id}/evidence', 'listTaskEvidence', 'Paginar evidencia', '', 'EvidencePage', 200],
@@ -91,6 +94,7 @@ for (const [method, route, operationId, summary, input, output, status] of defin
     description: access ? (runtime ? 'Canje público online sin cookies ni Authorization docente. Código individual de cinco caracteres; claimId/secreto de 256 bits persistidos antes de enviar. ACCESS_UNAVAILABLE neutraliza autorización/estado; 429 con Retry-After y 503 separan abuso e indisponibilidad. PostgreSQL comparte límites IP y digest entre instancias. Recuperación fija sesión/submission, nunca inicia ni devuelve evidencia. Sobres y fórmulas sin cambios. Participación institucional ausente bloquea uso real. Véase docs/acceso-codigo.md.' : 'TEACHER con sesión persistida y responsabilidad actual. Lotes atómicos de hasta 100, idempotencia por requestId, metadatos sin secretos y revelado individual no-store. Reemplazo/revocación invalidan inicios preparados, no entregas ya iniciadas. Recuperación dura 24 h; reconcileReceipt es explícito si ya existe acuse. Transferencia revoca accesos anteriores atómicamente. Véase docs/acceso-codigo.md.') : runtime ? 'Capacidad por sesión sin cookies docentes. Contratos 1.0 histórico y 1.1 adaptable; identidad/configuración resueltas por servidor. Entrega idempotente, sin reanudar medición. JSON estricto y límites 1 MiB/1000 ensayos/1000 incidencias. Véase docs/integracion-play.md.' : 'TEACHER activo con sesión persistida y responsabilidad actual. Mutaciones idempotentes con requestId; fechas UTC y destinatarios fijos. Participación institucional no implementada: deniega en composición normal. Solo test runner con BD aislada admite autorizaciones ficticias.',
     security: runtime ? access ? [] : [{ runtimeCapability: [] }] : [{ sessionCookie: [] }, { secureSessionCookie: [] }, { sessionBearer: [] }], parameters,
     ...(input ? { requestBody: { required: true, content: { 'application/json': { schema: ref(input) } } } } : {}), responses };
+  if (operationId === 'listStudentTaskAssignments') operation.description = 'TEACHER activo con sesión persistida y responsabilidad actual del estudiante. Asignaciones individuales o colectivas en las que el estudiante es destinatario fijo, solo de cursos propios; la pertenencia actual al curso no crea relaciones retroactivas. Orden createdAt DESC, id DESC; cursor firmado ligado al estudiante. attemptsStarted cuenta solo los intentos de ese destinatario. No devuelve otros destinatarios, códigos, grants ni evidencia. Lista vacía es 200; ajeno o inexistente 404 indistinguible; ADMIN 403.';
   if (operationId === 'getEvidenceReceipt') operation.description = 'Consulta automática y solo de lectura de un acuse existente, ligada al secreto original de capacidad, sesión y submissionId. Acepta capacidad expirada con canReadReceipt, nunca revocada. No renueva capacidad, no habilita inicio/entrega, no devuelve evidencia ni datos nominales. Devuelve receipt:null si ese envío no fue recibido. Play valida sesión/submission/hash antes de limpiar. Conserva origen exacto, no-store y límites runtime. No depende del código corto ni su vigencia.';
   doc.setIn(['paths', route, method], operation);
 }

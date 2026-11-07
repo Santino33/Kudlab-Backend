@@ -111,7 +111,7 @@ app.route('/api/v1/auth/password-recovery', recoveryRoutes);
 app.route('/', createGameRoutes(game));
 app.use('/api/v1/students', requireTeacher);
 app.use('/api/v1/students/*', requireTeacher);
-app.route('/api/v1/students', createStudentsRoutes(game.testActiveStudents));
+app.route('/api/v1/students', createStudentsRoutes(game));
 app.route('/api/v1/tasks', createCatalogRoutes(game));
 app.route('/api/v1/groups', groupsRoutes);
 app.route('/', createDocumentationRoutes());

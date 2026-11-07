@@ -16,6 +16,8 @@ const url = z.string().url().refine((value) => {
 
 const schema = z.object({
   NODE_ENV: z.string().optional(),
+  KUDLAB_LOCAL_SYNTHETIC_ENABLED: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
+  KUDLAB_LOCAL_SYNTHETIC_DATA_CONFIRMED: z.enum(['true', 'false']).optional().transform(v => v === 'true'),
   DATABASE_URL: z.string().url().startsWith('postgres'),
   BETTER_AUTH_SECRET: z.string().min(32),
   BETTER_AUTH_URL: url,
@@ -43,6 +45,19 @@ const schema = z.object({
   BOOTSTRAP_ADMIN_PASSWORD: z.string().optional(),
 }).superRefine((config, ctx) => {
   const issue = (key: string) => ctx.addIssue({ code: 'custom', path: [key], message: 'Configuración inválida' });
+  if (config.KUDLAB_LOCAL_SYNTHETIC_ENABLED) {
+    if (config.NODE_ENV !== 'development') issue('NODE_ENV');
+    if (!config.KUDLAB_LOCAL_SYNTHETIC_DATA_CONFIRMED) issue('KUDLAB_LOCAL_SYNTHETIC_DATA_CONFIRMED');
+    try {
+      const database = new URL(config.DATABASE_URL);
+      if (!['postgres:', 'postgresql:'].includes(database.protocol) || database.pathname !== '/kudlab_local' ||
+        !['postgres', 'localhost', '127.0.0.1'].includes(database.hostname) || database.search || database.hash) issue('DATABASE_URL');
+    } catch { issue('DATABASE_URL'); }
+    for (const key of ['BETTER_AUTH_URL', 'SPA_ORIGIN', 'GAME_RUNTIME_ORIGIN'] as const) {
+      try { if (!['localhost', '127.0.0.1'].includes(new URL(config[key] ?? '').hostname)) issue(key); }
+      catch { issue(key); }
+    }
+  }
   if (config.GAME_ACCESS_ENABLED) {
     if (!config.GAME_RUNTIME_ORIGIN || !config.GAME_ACCESS_LOOKUP_KEY || !config.GAME_ACCESS_IP_KEY || config.GAME_ACCESS_LOOKUP_KEY === config.GAME_ACCESS_IP_KEY) issue('GAME_ACCESS_LOOKUP_KEY');
     try {

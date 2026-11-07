@@ -6,10 +6,38 @@ Este checkout incluye `Dockerfile` para Node 24 sin usuario root y `.dockerignor
 La composición de los tres proyectos se arranca desde Kudlab Frontend con
 `npm run docker:setup -- /ruta/a/este/backend /ruta/a/Play` y `npm run docker:up`.
 El backend espera PostgreSQL, aplica migraciones y ejecuta el bootstrap normal;
-no inyecta participación sintética ni habilita partidas. PostgreSQL y secretos
+por defecto no inyecta participación sintética ni habilita partidas. PostgreSQL y secretos
 deben ser propios del entorno local, nunca una base compartida/de producción.
 Consultar `docs/docker-local.md` del frontend para correo pendiente, persistencia,
 puertos, configuración y evidencia. Este cambio no añade rutas ni cambia reglas API.
+
+### Demostración TG-01 exclusivamente sintética
+
+Opt-in privado: `KUDLAB_LOCAL_SYNTHETIC_ENABLED=true` y
+`KUDLAB_LOCAL_SYNTHETIC_DATA_CONFIRMED=true` (declaración del operador).
+Solo se admite `NODE_ENV=development`, BD `kudlab_local` en `postgres` (servicio
+Compose), `localhost` o `127.0.0.1`, sin parámetros de conexión alternativos, y
+orígenes API/docente/Play loopback. Estas comprobaciones no prueban el contenido
+de la base: comprobar aislamiento y datos ficticios antes de habilitar.
+
+El arranque comparte política sintética entre API y procesador. Las altas nuevas
+quedan activas; la baja bloquea nuevas operaciones y persiste al reiniciar.
+Los estudiantes históricos no se actualizan. No hay consentimiento real ni
+aprobación metodológica: la regla permanece PROPOSED y los permisos no cambian.
+
+Con entorno comprobado y autorización del operador, `npm run game:prepare-local`
+publica/reutiliza la configuración compatible y habilita TG-01 en una transacción.
+Repetirlo no duplica versiones ni cambia revisión sin un cambio efectivo; un
+conflicto revierte la preparación. No se ejecuta al arrancar ni reactiva tareas
+o estudiantes tras reinicios. El comando no aplica migraciones.
+
+Para códigos se necesita `GAME_ACCESS_ENABLED=true` y las claves independientes
+`GAME_ACCESS_LOOKUP_KEY`, `GAME_ACCESS_IP_KEY`, `GAME_ACCESS_KEYS` y su
+`GAME_ACCESS_ACTIVE_KEY_ID`. El setup frontend puede agregar faltantes con
+confirmación; no poner estas claves en `VITE_*`. Desactivar el modo sintético
+restaura la política normal sin borrar asignaciones, sesiones ni evidencia.
+Preparación, migraciones del CMD y operación de Docker requieren autorización
+separada; una build o pruebas unitarias no acreditan el recorrido integrado.
 
 **J-03:** códigos individuales de **5 caracteres alfanuméricos**, gestión docente,
 canje público y recuperación sobre el mismo runtime. Migración aditiva 0012 y
@@ -105,7 +133,7 @@ npm run docs:check
 
 ## API y documentación
 
-El catálogo canónico es [`docs/api/openapi.yaml`](docs/api/openapi.yaml), OpenAPI 3.1.0: **58 operaciones**. Incluye parámetros, cuerpos, respuestas, errores, permisos y ejemplos sintéticos/no operativos. Los contratos históricos consumidos por regresión permanecen en [`tests/fixtures/openapi/`](tests/fixtures/openapi/README.md); no son una segunda fuente operativa.
+El catálogo canónico es [`docs/api/openapi.yaml`](docs/api/openapi.yaml), OpenAPI 3.1.0: **59 operaciones**. Incluye parámetros, cuerpos, respuestas, errores, permisos y ejemplos sintéticos/no operativos. Los contratos históricos consumidos por regresión permanecen en [`tests/fixtures/openapi/`](tests/fixtures/openapi/README.md); no son una segunda fuente operativa.
 
 Con `NODE_ENV=development` o `NODE_ENV=test` explícitos:
 
