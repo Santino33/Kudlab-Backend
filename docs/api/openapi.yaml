@@ -722,10 +722,15 @@ paths:
         '503': { $ref: '#/components/responses/AcademicUnavailable' }
     post:
       operationId: createStudent
-      summary: Registrar estudiante inactivo en grupo propio
+      summary: Registrar estudiante en grupo propio
       description: >-
-        TEACHER activo, grupo propio. Alta fija isActive=false, no crea cuenta o
-        sesión estudiantil. UUID de groupId malformado400; grupo
+        TEACHER activo, grupo propio. Alta normal isActive=false. Exclusivamente
+        en composición Docker local sintética confirmada en servidor, el alta
+        retorna isActive=true sin acreditar consentimiento real. La variante
+        requiere KUDLAB_LOCAL_SYNTHETIC_ENABLED y declaración explícita de datos
+        ficticios, development, BD local autorizada y orígenes loopback. No existe
+        bandera HTTP para seleccionarla ni permite enviar estado/consentimiento.
+        No crea cuenta o sesión estudiantil. UUID de groupId malformado400; grupo
         ajeno/ausente404 uniforme. Query prohibida. Código global único,
         incluido inactivo;409 no revela titular/grupo. Cuerpo estricto.
       tags: [ Estudiantes ]

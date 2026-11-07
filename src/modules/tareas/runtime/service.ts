@@ -8,7 +8,7 @@ import { user } from '../../../db/schema/auth.js';
 import { tasks, taskPublishedVersions } from '../../../db/schema/tasks.js';
 import { assignments, recipients, operationReceipts, gameSessions, runtimeCapabilities, launchGrants, resultReceipts, rawEvents, sessionIncidents, gameConfigurations, indicatorRules, calculationRuns, calculatedIndicators } from '../../../db/schema/game.js';
 import { withAcademicAccess, type AcademicActor, type AcademicTransaction as Tx } from '../../academico/shared/academic-auth.js';
-import { participationProvider, requireParticipation, type GameDependencies } from '../../academico/shared/participation.js';
+import { participationProvider, requireParticipation, syntheticEnabled, type GameDependencies } from '../../academico/shared/participation.js';
 import { hasActiveIdentity } from '../../usuarios/shared/accounts.types.js';
 import { notFound } from '../../academico/shared/academic.errors.js';
 import { compatible, envelopeSchema, hash, secretDigest, uuid, uuidV4, secret, type Envelope } from './contract.js';
@@ -25,9 +25,9 @@ type Capability = typeof runtimeCapabilities.$inferSelect;
 function resourceId(id: string) { if (!uuid.safeParse(id).success) throw notFound(); }
 
 export function createGameService(deps: GameDependencies = {}) {
-  const participation = participationProvider(deps), synthetic = Boolean(deps.testParticipation);
+  const participation = participationProvider(deps);
   const methodAllowed = (rule: typeof indicatorRules.$inferSelect) => hash(rule.definition) === rule.definitionHash &&
-    hash(rule.definition) === hash(RULE) && (rule.approvalStatus === 'APPROVED' || synthetic);
+    hash(rule.definition) === hash(RULE) && (rule.approvalStatus === 'APPROVED' || syntheticEnabled(deps));
   async function ownGroup(tx: Tx, actor: AcademicActor, id: string) {
     resourceId(id);
     const [group] = await tx.select().from(groups).where(and(eq(groups.id, id), eq(groups.teacherId, actor.accountId))).for('share');

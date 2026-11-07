@@ -4,11 +4,11 @@ import { db } from '../../db/client.js';
 import { calculationRuns, gameSessions, resultReceipts, rawEvents, sessionIncidents, recipients, assignments, gameConfigurations, indicatorRules, calculatedIndicators } from '../../db/schema/game.js';
 import { taskPublishedVersions } from '../../db/schema/tasks.js';
 import { envelopeSchema, hash } from '../tareas/runtime/contract.js';
-import { assertTestDatabase, type GameDependencies } from '../academico/shared/participation.js';
+import { syntheticEnabled, type GameDependencies } from '../academico/shared/participation.js';
 import { calculate, RULE } from './tg01.js';
 
 export async function processOne(deps: GameDependencies = {}) {
-  if (deps.testParticipation) assertTestDatabase();
+  const synthetic = syntheticEnabled(deps);
   const claimed = await db.transaction(async tx => {
     const [run] = await tx.select().from(calculationRuns).where(sql`(
       (${calculationRuns.status} = 'PENDING' and (${calculationRuns.nextAttemptAt} is null or ${calculationRuns.nextAttemptAt} <= now())) or
@@ -39,7 +39,7 @@ export async function processOne(deps: GameDependencies = {}) {
       timing: { startedAtMs: r.startedAtMs, finishedAtMs: r.finishedAtMs, lastCheckpointAtMs: r.lastCheckpointAtMs }, device: r.device,
       events: trials.map(({ id: _, sessionId: __, ...t }) => t), incidents: incidents.map(({ id: _, sessionId: __, ...i }) => i) });
     if (hash(e) !== claimed.evidenceHash) throw new Error('EVIDENCE_HASH_MISMATCH');
-    const allowed = row.rule.approvalStatus === 'APPROVED' || Boolean(deps.testParticipation);
+    const allowed = row.rule.approvalStatus === 'APPROVED' || synthetic;
     const result = calculate(e, allowed);
     await db.transaction(async tx => {
       const [current] = await tx.select().from(calculationRuns).where(and(eq(calculationRuns.id, claimed.id), eq(calculationRuns.leaseToken, claimed.leaseToken), eq(calculationRuns.status, 'PROCESSING'), sql`${calculationRuns.leaseUntil} > now()`)).for('update');
