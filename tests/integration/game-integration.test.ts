@@ -145,6 +145,24 @@ describe('J-02 real PostgreSQL, synthetic participation only', () => {
     expect((await list(f.student.id, `?limit=1&cursor=${encodeURIComponent(paged.nextCursor)}`)).status).toBe(404);
     expect((await (await list(f.student.id, '', f.b.teacher)).json()).items).toHaveLength(4);
   });
+  it('uncertain creation: replay, lost response and double submit yield exactly one assignment visible for the student', async () => {
+    const f = await gameFixture();
+    const input = { requestId: randomUUID(), taskId: 'TG-01', publishedVersionId: f.versionId, groupId: f.student.groupId, studentIds: [f.student.id, f.secondStudent.id], startsAt: new Date(Date.now() - 60000).toISOString(), endsAt: new Date(Date.now() + 3600000).toISOString(), maxAttempts: 2 };
+    const ids = async (studentId: string) => (await (await request(`/students/${studentId}/task-assignments`, 'GET', undefined, f.a.teacher)).json()).items.map((a: { id: string }) => a.id);
+    expect(await ids(f.student.id)).toEqual([]);
+    // Double click / concurrent submit with the same frozen body and requestId.
+    const [one, two] = await Promise.all([request('/task-assignments', 'POST', input, f.a.teacher), request('/task-assignments', 'POST', input, f.a.teacher)]);
+    expect([one.status, two.status].sort()).toEqual([200, 201]);
+    const created = await one.json(); expect((await two.json()).id).toBe(created.id);
+    // Response lost after commit: «Comprobar creación» replays the same request and recovers it.
+    const replay = await request('/task-assignments', 'POST', input, f.a.teacher);
+    expect(replay.status).toBe(200); expect((await replay.json()).id).toBe(created.id);
+    // Reusing the requestId with another body is rejected, never a second assignment.
+    const conflicting = await request('/task-assignments', 'POST', { ...input, studentIds: [f.student.id] }, f.a.teacher);
+    expect(conflicting.status).toBe(409); expect((await conflicting.json()).reason).toBe('REQUEST_CONFLICT');
+    expect(await ids(f.student.id)).toEqual([created.id]); expect(await ids(f.secondStudent.id)).toEqual([created.id]);
+    expect((await db.select().from(assignments).where(eq(assignments.groupId, f.student.groupId))).length).toBe(1);
+  });
   it('neutralizes foreign/admin access and follows current course responsibility', async () => {
     const f = await fixture(), l = await launch(f);
     for (const actor of [f.b.teacher, f.a.admin]) {
