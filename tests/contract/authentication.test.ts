@@ -14,7 +14,7 @@ import { app } from '../../src/app.js';
 import { session as authSession } from '../../src/db/schema/auth.js';
 import { inviteTeacher, login, request, reset } from '../helpers.js';
 
-const spec = parse(readFileSync('specs/003-autenticar-usuarios/contracts/auth.openapi.yaml', 'utf8'));
+const spec = parse(readFileSync('tests/fixtures/openapi/auth.openapi.yaml', 'utf8'));
 const validator = new Ajv2020({ strict: false });
 (addFormatsModule as unknown as FormatsPlugin)(validator);
 async function assertContract(path: string, method: string, response: Response) {

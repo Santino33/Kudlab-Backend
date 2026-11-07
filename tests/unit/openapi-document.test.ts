@@ -5,9 +5,7 @@ import { operations, parseContract, readContract, validateDocument, validateExam
 async function check(doc: Document) {
   await validateDocument(doc);
   await validateExamples(doc);
-  const design = readFileSync(new URL('../../specs/006-api-swagger-docs/contracts/documentation.md', import.meta.url), 'utf8');
-  const expected = [...design.matchAll(/^\| `([^`]+)` \| (GET|POST|PATCH|PUT|DELETE) `([^`]+)` \|/gm)]
-    .map((m) => `${m[2]!.toLowerCase()} ${m[3]} ${m[1]}`).sort();
+  const expected: string[] = JSON.parse(readFileSync(new URL('../fixtures/openapi/operations.json', import.meta.url), 'utf8'));
   expect(expected).toHaveLength(59);
   expect(operations(doc).map(([p, m, o]) => `${m} ${p} ${o.operationId}`).sort()).toEqual(expected);
 }
