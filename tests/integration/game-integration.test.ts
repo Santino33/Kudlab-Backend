@@ -3,7 +3,7 @@ import { readFileSync } from 'node:fs';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
-import { assignments, calculationRuns, gameSessions, rawEvents, resultReceipts, runtimeCapabilities } from '../../src/db/schema/game.js';
+import { assignments, recipients, calculationRuns, gameSessions, rawEvents, resultReceipts, runtimeCapabilities } from '../../src/db/schema/game.js';
 import { groups, students } from '../../src/db/schema/academic.js';
 import { reset } from '../helpers.js';
 import { authorizations, gameDependencies, gameFixture, testGameApp } from '../game-fixture.js';
@@ -98,6 +98,52 @@ describe('J-02 real PostgreSQL, synthetic participation only', () => {
     expect(Math.abs(values.rt_cv_pct - 32.659863)).toBeLessThanOrEqual(1e-6);
     expect(await db.select().from(resultReceipts)).toHaveLength(1); expect(await db.select().from(calculationRuns)).toHaveLength(1);
     expect((await request(started.path, 'POST', started.input, l.runtime)).status).toBe(409);
+  });
+  it('lists only the assignments a student is a fixed recipient of, paginated before filtering and scoped to current responsibility', async () => {
+    const f = await fixture(), l = await launch(f); await start(l);
+    const [third] = await db.insert(students).values({ groupId: f.student.groupId, studentCode: 'CORR-FICTICIO-C', firstName: 'Participante', lastName: 'Sintético C', isActive: true }).returning();
+    const create = async (studentIds: string[]) => {
+      const r = await request('/task-assignments', 'POST', { ...f.input, requestId: randomUUID(), studentIds }, f.a.teacher);
+      expect(r.status, JSON.stringify(await r.clone().json())).toBe(201); return r.json();
+    };
+    const collective = await create([f.student.id, f.secondStudent.id]), other = await create([f.secondStudent.id]);
+    const list = async (id: string, query = '', actor: Record<string, string> = f.a.teacher) => request(`/students/${id}/task-assignments${query}`, 'GET', undefined, actor);
+    const first = await list(f.student.id);
+    expect(first.status).toBe(200); expect(first.headers.get('cache-control')).toBe('no-store');
+    const body = await first.json();
+    expect(body.items.map((a: { id: string }) => a.id)).toEqual([collective.id, f.assignment.id]);
+    expect(body.nextCursor).toBeNull();
+    const [col, ind] = body.items;
+    expect(col).toMatchObject({ studentId: f.student.id, recipientCount: 2, attemptsStarted: 0, recipientId: collective.recipients.find((r: { studentId: string }) => r.studentId === f.student.id).id });
+    expect(ind).toMatchObject({ studentId: f.student.id, recipientCount: 1, attemptsStarted: 1, recipientId: f.assignment.recipients[0].id });
+    expect(JSON.stringify(body)).not.toMatch(/recipients|studentCode|studentDisplayName|launchGrant|code"/);
+    const second = await (await list(f.secondStudent.id)).json();
+    expect(second.items.map((a: { id: string }) => a.id)).toEqual([other.id, collective.id]);
+    expect(second.items.every((a: { attemptsStarted: number }) => a.attemptsStarted === 0)).toBe(true);
+    expect(await (await list(third!.id)).json()).toEqual({ items: [], nextCursor: null });
+    // Same createdAt: id DESC breaks ties and pages neither skip nor repeat.
+    const at = new Date('2026-12-01T00:00:00Z'), tied = await db.insert(assignments).values([1, 2].map(() => ({ taskId: 'TG-01', publishedVersionId: f.versionId, groupId: f.student.groupId, createdBy: f.a.account.id,
+      startsAt: new Date(f.input.startsAt), endsAt: new Date(f.input.endsAt), maxAttempts: 1, createdAt: at, requestId: randomUUID(), requestHash: 'synthetic' }))).returning();
+    await db.insert(recipients).values(tied.map(a => ({ assignmentId: a.id, studentId: f.student.id })));
+    const tie = [...tied.map(a => a.id).sort().reverse(), collective.id, f.assignment.id], seen: string[] = [];
+    let cursor: string | null = null;
+    do { const page = await (await list(f.student.id, `?limit=1${cursor ? `&cursor=${encodeURIComponent(cursor)}` : ''}`)).json(); seen.push(...page.items.map((a: { id: string }) => a.id)); cursor = page.nextCursor; } while (cursor);
+    expect(seen).toEqual(tie);
+    const paged = await (await list(f.student.id, '?limit=1')).json();
+    expect((await list(f.secondStudent.id, `?limit=1&cursor=${encodeURIComponent(paged.nextCursor)}`)).status).toBe(400);
+    for (const q of ['?cursor=forged.cursor', '?limit=0', '?limit=101', '?limit=1&limit=2', '?groupId=' + f.student.groupId]) expect((await list(f.student.id, q)).status).toBe(400);
+    // Inactive history remains readable inside scope.
+    await db.update(students).set({ isActive: false }).where(eq(students.id, f.student.id));
+    expect((await (await list(f.student.id)).json()).items).toHaveLength(4);
+    expect((await list(f.student.id, '', f.b.teacher)).status).toBe(404);
+    expect((await list(randomUUID(), '', f.a.teacher)).status).toBe(404);
+    expect((await list('not-a-uuid', '', f.a.teacher)).status).toBe(404);
+    expect((await list(f.student.id, '', f.a.admin)).status).toBe(403);
+    expect((await list(f.student.id, '', {})).status).toBe(401);
+    // Responsibility transfer: revoked between pages for A, visible for the new responsible teacher.
+    await db.update(groups).set({ teacherId: f.b.account.id }).where(eq(groups.id, f.student.groupId));
+    expect((await list(f.student.id, `?limit=1&cursor=${encodeURIComponent(paged.nextCursor)}`)).status).toBe(404);
+    expect((await (await list(f.student.id, '', f.b.teacher)).json()).items).toHaveLength(4);
   });
   it('neutralizes foreign/admin access and follows current course responsibility', async () => {
     const f = await fixture(), l = await launch(f);

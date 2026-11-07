@@ -1,4 +1,4 @@
-import { and, eq, sql, asc, desc, inArray, lt } from 'drizzle-orm';
+import { and, eq, sql, asc, desc, inArray, isNotNull, lt } from 'drizzle-orm';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { z } from 'zod';
 import { db } from '../../../db/client.js';
@@ -97,9 +97,14 @@ export function createGameService(deps: GameDependencies = {}) {
     await tx.insert(operationReceipts).values({ actorId: actor.accountId, requestId: input.requestId, operation: name, requestHash: fingerprint, references });
     return { ...references, repeated: false };
   }
-  async function assignmentDetail(tx: Tx, a: typeof assignments.$inferSelect) {
+  async function assignmentSummary(tx: Tx, a: typeof assignments.$inferSelect, recipientCount: number, now = new Date()) {
     const [version] = await tx.select().from(taskPublishedVersions).where(eq(taskPublishedVersions.id, a.publishedVersionId));
     const [task] = await tx.select().from(tasks).where(eq(tasks.id, a.taskId));
+    return { id: a.id, taskId: a.taskId, title: task!.title, publishedVersionId: a.publishedVersionId, configVersion: version!.version, groupId: a.groupId,
+      startsAt: a.startsAt.toISOString(), endsAt: a.endsAt.toISOString(), maxAttempts: a.maxAttempts, status: a.status,
+      availability: a.status === 'CANCELLED' ? 'CANCELLED' : now < a.startsAt ? 'FUTURE' : now >= a.endsAt ? 'EXPIRED' : 'CURRENT', recipientCount, createdAt: a.createdAt.toISOString() };
+  }
+  async function assignmentDetail(tx: Tx, a: typeof assignments.$inferSelect) {
     const rows = await tx.select({ r: recipients, s: students }).from(recipients).innerJoin(students, eq(students.id, recipients.studentId)).where(eq(recipients.assignmentId, a.id)).orderBy(asc(recipients.id));
     const now = new Date();
     const detail = [];
@@ -116,9 +121,7 @@ export function createGameService(deps: GameDependencies = {}) {
       detail.push({ id: r.id, studentId: s.id, studentDisplayName: `${s.firstName} ${s.lastName}`, studentCode: s.studentCode,
         attemptsStarted, activeSessionId: active?.id ?? null, canLaunch: reasons.length === 0, unavailableReasons: [...new Set(reasons)] });
     }
-    return { id: a.id, taskId: a.taskId, title: task!.title, publishedVersionId: a.publishedVersionId, configVersion: version!.version, groupId: a.groupId,
-      startsAt: a.startsAt.toISOString(), endsAt: a.endsAt.toISOString(), maxAttempts: a.maxAttempts, status: a.status,
-      availability: a.status === 'CANCELLED' ? 'CANCELLED' : now < a.startsAt ? 'FUTURE' : now >= a.endsAt ? 'EXPIRED' : 'CURRENT', recipientCount: rows.length, createdAt: a.createdAt.toISOString(), recipients: detail };
+    return { ...await assignmentSummary(tx, a, rows.length, now), recipients: detail };
   }
   const receiptDto = (r: typeof resultReceipts.$inferSelect) => ({ receiptId: r.id, sessionId: r.sessionId, submissionId: r.submissionId, receivedAt: r.receivedAt.toISOString(), evidenceHash: r.evidenceHash, processingStatusAtReceipt: 'PENDING' as const });
   async function sessionConfig(tx: Tx, s: SessionRow) {
@@ -393,6 +396,25 @@ export function createGameService(deps: GameDependencies = {}) {
         const page = rows.slice(0, paging.limit), items = [];
         for (const a of page) { const { recipients: _, ...summary } = await assignmentDetail(tx, a); items.push(summary); }
         const last = page.at(-1);
+        return { items, nextCursor: rows.length > paging.limit ? cursorFor(filter, { at: last!.createdAt.toISOString(), id: last!.id }) : null };
+      });
+    },
+    async listStudentAssignments(actor: AcademicActor, studentId: string, paging: Paging) {
+      return withAcademicAccess(actor, async tx => {
+        // Fixed recipients, not current membership; only assignments of courses the actor is responsible for.
+        await ownStudent(tx, actor, studentId); const filter = `student-assignments:${studentId}`, position = datePosition(paging.cursor, filter);
+        const rows = await tx.select({ a: assignments, recipientId: recipients.id }).from(recipients)
+          .innerJoin(assignments, eq(assignments.id, recipients.assignmentId)).innerJoin(groups, eq(groups.id, assignments.groupId))
+          .where(and(eq(recipients.studentId, studentId), eq(groups.teacherId, actor.accountId),
+            position ? sql`(${assignments.createdAt}, ${assignments.id}) < (${position.at}::timestamptz, ${position.id}::uuid)` : undefined))
+          .orderBy(desc(assignments.createdAt), desc(assignments.id)).limit(paging.limit + 1);
+        const page = rows.slice(0, paging.limit), items = [], now = new Date();
+        for (const { a, recipientId } of page) {
+          const [total] = await tx.select({ n: sql<number>`count(*)::int` }).from(recipients).where(eq(recipients.assignmentId, a.id));
+          const [attempts] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, recipientId), isNotNull(gameSessions.attemptNumber)));
+          items.push({ ...await assignmentSummary(tx, a, total!.n, now), studentId, recipientId, attemptsStarted: attempts!.n });
+        }
+        const last = page.at(-1)?.a;
         return { items, nextCursor: rows.length > paging.limit ? cursorFor(filter, { at: last!.createdAt.toISOString(), id: last!.id }) : null };
       });
     },

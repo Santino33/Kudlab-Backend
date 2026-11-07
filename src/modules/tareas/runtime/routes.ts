@@ -108,7 +108,7 @@ export function createGameRoutes(deps: GameDependencies = {}) {
     if (c.get('currentAccount').role !== 'TEACHER') throw new GameError(403, 'FORBIDDEN');
     await next();
   };
-  for (const path of ['/task-assignments', '/task-assignments/*', '/task-assignment-recipients/*', '/task-access-codes/*', '/task-sessions/*', '/students/:id/task-sessions']) teacher.use(path, protect);
+  for (const path of ['/task-assignments', '/task-assignments/*', '/task-assignment-recipients/*', '/task-access-codes/*', '/task-sessions/*', '/students/:id/task-sessions', '/students/:id/task-assignments']) teacher.use(path, protect);
   teacher.post('/task-assignments/:id/access-codes', async c => { empty(c); const r = await service.generateCodes(academicActor(c), c.req.param('id'), await body(c, 16384)); return c.json(r.detail, r.repeated ? 200 : 201); });
   teacher.get('/task-assignments/:id/access-codes', async c => { const q = query(c, z.strictObject(pageSchema)); return c.json(await service.listCodes(academicActor(c), c.req.param('id'), q)); });
   teacher.post('/task-access-codes/:id/reveal', async c => { empty(c); return c.json(await service.revealCode(academicActor(c), c.req.param('id'), await body(c, 4096))); });
@@ -121,6 +121,7 @@ export function createGameRoutes(deps: GameDependencies = {}) {
   teacher.post('/task-assignments/:id/cancel', async c => { empty(c); return c.json(await service.cancel(academicActor(c), c.req.param('id'), await body(c, 4096))); });
   teacher.post('/task-assignment-recipients/:id/launch-grants', async c => { empty(c); const r = await service.grant(academicActor(c), c.req.param('id'), await body(c, 4096)); return c.json(r.detail, r.repeated ? 200 : 201); });
   teacher.get('/students/:id/task-sessions', async c => { const q = query(c, z.strictObject({ ...pageSchema, taskId: z.literal('TG-01').optional() })); return c.json(await service.listSessions(academicActor(c), c.req.param('id'), q.taskId, q)); });
+  teacher.get('/students/:id/task-assignments', async c => { const q = query(c, z.strictObject(pageSchema)); return c.json(await service.listStudentAssignments(academicActor(c), c.req.param('id'), q)); });
   teacher.get('/task-sessions/:id', async c => { empty(c); return c.json(await service.session(academicActor(c), c.req.param('id'))); });
   teacher.get('/task-sessions/:id/evidence', async c => { const q = query(c, z.strictObject({ ...pageSchema, kind: z.enum(['trials', 'incidents']) })); return c.json(await service.evidence(academicActor(c), c.req.param('id'), q.kind, q)); });
   teacher.post('/task-sessions/:id/recovery-grants', async c => { empty(c); const r = await service.grant(academicActor(c), c.req.param('id'), await body(c, 4096), true); return c.json(r.detail, r.repeated ? 200 : 201); });
