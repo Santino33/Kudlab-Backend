@@ -24,7 +24,7 @@ export function academicActor(c: Context<AuthVariables>): AcademicActor {
   return { accountId: c.get('currentAccount').id, authUserId: c.get('authUserId'), sessionId: c.get('sessionId') };
 }
 
-export async function withAcademicAccess<T>(actor: AcademicActor, operation: (tx: AcademicTransaction) => Promise<T>, role: 'TEACHER' | 'ADMIN' = 'TEACHER'): Promise<T> {
+export async function withAcademicAccess<T>(actor: AcademicActor, operation: (tx: AcademicTransaction) => Promise<T>, role: 'TEACHER' | 'ADMIN' = 'TEACHER', options?: { isolationLevel: 'repeatable read' }): Promise<T> {
   return db.transaction(async (tx) => {
     // NOWAIT prevents lock inversion with existing identity-first account lifecycle operations.
     const [account] = await tx.select().from(userAccounts).where(eq(userAccounts.id, actor.accountId))
@@ -38,5 +38,5 @@ export async function withAcademicAccess<T>(actor: AcademicActor, operation: (tx
     const result = await operation(tx);
     if (!await recordAcceptedRequestInTransaction(tx, actor.sessionId, actor.authUserId)) throw unauthenticated();
     return result;
-  });
+  }, options);
 }
