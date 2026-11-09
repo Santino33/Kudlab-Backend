@@ -1,11 +1,11 @@
 import { z } from 'zod';
+import { MAX_CONSENT_FILE_BYTES } from './consent-storage.js';
 
-type MetadataField = 'metadata' | 'requestId' | 'expectedVersion' | 'signedOn' | 'receivedOn';
-type MetadataReason = 'required' | 'invalid_format' | 'future_date' | 'date_order';
+type MetadataField = 'metadata' | 'requestId' | 'expectedVersion' | 'signedOn' | 'receivedOn' | 'file';
+type MetadataReason = 'required' | 'invalid_format' | 'future_date' | 'date_order' | 'too_large';
 export class ConsentInputError extends Error {
-  readonly status = 400;
   readonly code = 'INVALID_INPUT';
-  constructor(readonly fields: { field: MetadataField; reason: MetadataReason }[]) {
+  constructor(readonly fields: { field: MetadataField; reason: MetadataReason }[], readonly status: 400 | 413 = 400) {
     super('Datos de consentimiento inválidos');
     this.name = 'ConsentInputError';
   }
@@ -44,4 +44,19 @@ export function parseConsentMetadata(input: unknown, now: Date) {
   }
   if (data.signedOn > data.receivedOn) throw invalid('signedOn', 'date_order');
   return data;
+}
+
+// Transport must bound the raw body before parsing FormData; this only checks the parsed parts.
+// MIME/name are untrusted: the structural validator must still validate the original file bytes.
+export function parseConsentForm(form: FormData, now: Date) {
+  if ([...form.keys()].some(key => key !== 'file' && key !== 'metadata')) throw invalid('metadata');
+  const files = form.getAll('file'), metadata = form.getAll('metadata');
+  if (files.length !== 1 || !(files[0] instanceof File)) throw invalid('file');
+  if (metadata.length !== 1 || typeof metadata[0] !== 'string') throw invalid('metadata');
+  const file = files[0];
+  if (!file.size) throw invalid('file', 'required');
+  if (file.size > MAX_CONSENT_FILE_BYTES) throw new ConsentInputError([{ field: 'file', reason: 'too_large' }], 413);
+  let input: unknown;
+  try { input = JSON.parse(metadata[0]); } catch { throw invalid('metadata'); }
+  return { file, metadata: parseConsentMetadata(input, now) };
 }
