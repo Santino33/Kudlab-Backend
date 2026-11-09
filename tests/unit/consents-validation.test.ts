@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { ConsentInputError, parseConsentMetadata, parseConsentForm } from '../../src/modules/academico/consents/consents.validation.js';
+import { ConsentInputError, parseConsentMetadata, parseConsentForm, readConsentForm } from '../../src/modules/academico/consents/consents.validation.js';
 
 const input = { requestId: '993e9e73-e0d7-4f52-98e8-e2f24685f84a', expectedVersion: 0,
   signedOn: '2026-11-08', receivedOn: '2026-11-08' };
@@ -70,5 +70,47 @@ describe('consent multipart parts — CA-02, not raw transport or format validat
     values[3]!.set('metadata', '{');
     values[4]!.set('metadata', JSON.stringify({ ...input, isActive: true }));
     for (const value of values) expect(() => parseConsentForm(value, now)).toThrow(ConsentInputError);
+  });
+  it('bounds metadata independently of the file before parsing JSON', () => {
+    const value = form(); value.set('metadata', ' '.repeat(65537));
+    expect(() => parseConsentForm(value, now)).toThrow(ConsentInputError);
+  });
+});
+
+describe('bounded multipart transport — CA-02', () => {
+  it('reads valid multipart with no Content-Length and preserves the exact file boundary', async () => {
+    const data = new FormData();
+    data.append('file', new File([new Uint8Array(10485760)], 'sample.png'));
+    data.append('metadata', JSON.stringify(input));
+    const request = new Request('http://localhost/test', { method: 'POST', body: data });
+    expect(request.headers.has('content-length')).toBe(false);
+    expect((await readConsentForm(request, now)).file.size).toBe(10485760);
+  });
+  it('cancels an oversized stream independently of Content-Length', async () => {
+    let cancelled = false;
+    const body = new ReadableStream<Uint8Array>({
+      pull(controller) { controller.enqueue(new Uint8Array(65536)); },
+      cancel() { cancelled = true; },
+    });
+    const request = new Request('http://localhost/test', { method: 'POST', body, duplex: 'half',
+      headers: { 'Content-Type': 'multipart/form-data; boundary=test', 'Content-Length': '1' },
+    } as RequestInit);
+    await expect(readConsentForm(request, now)).rejects.toMatchObject({ status: 413 });
+    expect(cancelled).toBe(true);
+  });
+  it('rejects malformed boundaries without reflecting data', async () => {
+    const request = new Request('http://localhost/test', { method: 'POST', body: 'private-data',
+      headers: { 'Content-Type': 'multipart/form-data; boundary=missing' } });
+    await expect(readConsentForm(request, now)).rejects.toMatchObject({ status: 400, fields: [{ field: 'metadata', reason: 'invalid_format' }] });
+  });
+  it('cancels a pending body read when the request aborts', async () => {
+    let cancelled = false;
+    const controller = new AbortController();
+    const body = new ReadableStream<Uint8Array>({ cancel() { cancelled = true; } });
+    const request = new Request('http://localhost/test', { method: 'POST', body, duplex: 'half', signal: controller.signal,
+      headers: { 'Content-Type': 'multipart/form-data; boundary=test' } } as RequestInit);
+    const pending = readConsentForm(request, now);
+    controller.abort();
+    await expect(pending).rejects.toThrow('cancelada'); expect(cancelled).toBe(true);
   });
 });

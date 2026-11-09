@@ -53,10 +53,37 @@ export function parseConsentForm(form: FormData, now: Date) {
   const files = form.getAll('file'), metadata = form.getAll('metadata');
   if (files.length !== 1 || !(files[0] instanceof File)) throw invalid('file');
   if (metadata.length !== 1 || typeof metadata[0] !== 'string') throw invalid('metadata');
+  if (Buffer.byteLength(metadata[0], 'utf8') > 65536) throw invalid('metadata');
   const file = files[0];
   if (!file.size) throw invalid('file', 'required');
   if (file.size > MAX_CONSENT_FILE_BYTES) throw new ConsentInputError([{ field: 'file', reason: 'too_large' }], 413);
   let input: unknown;
   try { input = JSON.parse(metadata[0]); } catch { throw invalid('metadata'); }
   return { file, metadata: parseConsentMetadata(input, now) };
+}
+
+export async function readConsentForm(request: Request, now: Date) {
+  if (!request.headers.get('content-type')?.toLowerCase().startsWith('multipart/form-data;') || !request.body) throw invalid('metadata');
+  const reader = request.body.getReader(), chunks: Uint8Array[] = [];
+  const abort = () => { void reader.cancel().catch(() => undefined); };
+  request.signal.addEventListener('abort', abort, { once: true });
+  let total = 0;
+  try {
+    for (;;) {
+      if (request.signal.aborted) throw new Error('Petición cancelada');
+      const { done, value } = await reader.read();
+      if (request.signal.aborted) throw new Error('Petición cancelada');
+      if (done) break;
+      total += value.byteLength;
+      if (total > MAX_CONSENT_FILE_BYTES + 65536) {
+        await reader.cancel();
+        throw new ConsentInputError([{ field: 'file', reason: 'too_large' }], 413);
+      }
+      chunks.push(value);
+    }
+  } finally { request.signal.removeEventListener('abort', abort); reader.releaseLock(); }
+  let form: FormData;
+  try { form = await new Response(Buffer.concat(chunks), { headers: { 'Content-Type': request.headers.get('content-type')! } }).formData(); }
+  catch { throw invalid('metadata'); }
+  return parseConsentForm(form, now);
 }
