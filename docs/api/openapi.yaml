@@ -1670,7 +1670,7 @@ paths:
       operationId: listIndicatorDefinitions
       summary: Consultar el catálogo de indicadores
       tags:
-        - Actividades
+        - Estudiantes
       description: "Solo lectura, TEACHER activo. Describe los seis indicadores
         implementados de TG-01 con su unidad, datos necesarios, motivos de
         indisponibilidad y el estado metodológico vigente de la regla (propuesto o
@@ -1740,7 +1740,7 @@ paths:
       operationId: listStudentIndicatorHistory
       summary: Consultar la historia descriptiva de indicadores de un estudiante
       tags:
-        - Actividades
+        - Estudiantes
       description: "Solo lectura, TEACHER con responsabilidad actual sobre el
         estudiante; id ajeno o inexistente responde 404 neutro. Incluye cursos
         anteriores del estudiante pero nunca la asignación ni el curso de origen.
