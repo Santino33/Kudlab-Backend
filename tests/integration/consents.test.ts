@@ -63,6 +63,8 @@ it('autoriza todos los endpoints y rechaza Origin/query sin afectar el CRUD prev
     expect((await f.read(suffix, f.b.teacher)).status).toBe(404);
   }
   expect((await f.write(randomUUID(), 0, 'fixture', { ...f.b.teacher, origin: process.env.SPA_ORIGIN! })).status).toBe(404);
+  expect((await f.write(randomUUID(), 0, 'fixture', { origin: process.env.SPA_ORIGIN! })).status).toBe(401);
+  expect((await f.write(randomUUID(), 0, 'fixture', { ...f.a.admin, origin: process.env.SPA_ORIGIN! })).status).toBe(403);
   expect((await f.write(randomUUID(), 0, 'fixture', { ...f.headers, origin: 'https://other.invalid' })).status).toBe(403);
   expect(f.validate).not.toHaveBeenCalled();
   for (const query of ['?other=x', '/history?other=x', '/history?cursor=x&cursor=y', '/history?cursor=x'])
