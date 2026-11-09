@@ -9,7 +9,7 @@ import { notFound } from '../shared/academic.errors.js';
 import { academicScopeProvider } from '../shared/scope-provider.js';
 import { authorizeScope } from '../../usuarios/shared/scope-authorization.js';
 import { presentStudent } from '../students/students.service.js';
-import { ConsentInputError, readConsentForm } from './consents.validation.js';
+import { ConsentInputError, readConsentForm, readConsentRevocation } from './consents.validation.js';
 import { createConsentStorage, describeConsentEvidence, type ConsentEvidence } from './consent-storage.js';
 import { validateConsentFile } from './consent-validator.js';
 import { ConsentError, consentConflict, consentUnavailable } from './consents.errors.js';
@@ -128,6 +128,34 @@ export async function registerConsent(actor: AcademicActor, studentId: string, r
   if (!result) throw consentConflict('STALE_VERSION');
   return result;
 }
+export async function revokeConsent(actor: AcademicActor, studentId: string, request: Request) {
+  await withAcademicAccess(actor, tx => ownStudent(tx, actor, studentId, true));
+  const input = await readConsentRevocation(request);
+  const fingerprint = createHash('sha256').update(JSON.stringify([studentId, 'REVOKE', input.expectedVersion, input.recordId, input.reason])).digest('hex');
+  return withAcademicAccess(actor, async tx => {
+    const student = await ownStudent(tx, actor, studentId, true);
+    // Reserve before inserting the event: actor/requestId is unique even across different students.
+    const [created] = await tx.insert(consentOperations).values({ actorId: actor.accountId, studentId,
+      ...input, action: 'REVOKE', fingerprint }).onConflictDoNothing({ target: [consentOperations.actorId, consentOperations.requestId] }).returning();
+    if (!created) {
+      const [prior] = await tx.select().from(consentOperations)
+        .where(and(eq(consentOperations.actorId, actor.accountId), eq(consentOperations.requestId, input.requestId))).for('update');
+      if (!prior || prior.studentId !== studentId || prior.action !== 'REVOKE' || prior.fingerprint !== fingerprint) throw consentConflict('REQUEST_REUSED');
+      if (prior.status !== 'COMMITTED') throw consentUnavailable();
+      return { acknowledgement: await acknowledgement(tx, prior, true), snapshot: await snapshot(tx, student) };
+    }
+    const previous = await latest(tx, studentId);
+    if ((previous?.version ?? 0) !== input.expectedVersion) throw consentConflict('STALE_VERSION');
+    if (!previous || previous.type === 'REVOKE' || previous.recordId !== input.recordId) throw consentConflict('NOT_CURRENT');
+    const [author] = await tx.select({ name: userAccounts.fullName }).from(userAccounts).where(eq(userAccounts.id, actor.accountId));
+    if (!author) throw consentUnavailable();
+    const [event] = await tx.insert(consentEvents).values({ studentId, recordId: input.recordId, version: input.expectedVersion + 1,
+      type: 'REVOKE', actorId: actor.accountId, actorName: author.name, reason: input.reason }).returning();
+    const [committed] = await tx.update(consentOperations).set({ status: 'COMMITTED', eventId: event!.id })
+      .where(eq(consentOperations.id, created.id)).returning();
+    return { acknowledgement: await acknowledgement(tx, committed!, false), snapshot: await snapshot(tx, student) };
+  });
+}
 export function getConsentOperation(actor: AcademicActor, studentId: string, requestId: string) {
   uuid(requestId);
   return withAcademicAccess(actor, async tx => {
@@ -135,7 +163,7 @@ export function getConsentOperation(actor: AcademicActor, studentId: string, req
     const [operation] = await tx.select().from(consentOperations).where(and(eq(consentOperations.studentId, studentId),
       eq(consentOperations.actorId, actor.accountId), eq(consentOperations.requestId, requestId)));
     if (!operation) throw notFound();
-    return { requestId, status: operation.status, acknowledgement: operation.status === 'COMMITTED' ? await acknowledgement(tx, operation, true) : null,
+    return { requestId, action: operation.action, status: operation.status, acknowledgement: operation.status === 'COMMITTED' ? await acknowledgement(tx, operation, true) : null,
       attempt: { expectedVersion: operation.expectedVersion, signedOn: operation.signedOn, receivedOn: operation.receivedOn,
         mediaType: operation.mediaType, byteSize: operation.byteSize, sha256: operation.sha256 }, rejectionCode: operation.rejectionCode };
   });

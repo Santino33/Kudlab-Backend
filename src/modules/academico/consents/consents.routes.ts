@@ -5,7 +5,7 @@ import { academicActor } from '../shared/academic-auth.js';
 import { forbidden } from '../shared/academic.errors.js';
 import { ConsentError, consentFail } from './consents.errors.js';
 import { consentDependencies, getConsentDocument, getConsentHistory, getConsentOperation,
-  getConsentSnapshot, registerConsent, type ConsentDependencies } from './consents.service.js';
+  getConsentSnapshot, registerConsent, revokeConsent, type ConsentDependencies } from './consents.service.js';
 
 export function createConsentsRoutes(injected?: ConsentDependencies) {
   const routes = new Hono<AuthVariables>();
@@ -18,6 +18,7 @@ export function createConsentsRoutes(injected?: ConsentDependencies) {
     await next();
   });
   routes.use('/:id/consents/*', async (c, next) => {
+    if (c.req.method === 'POST' && c.req.header('Origin') !== loadEnv().SPA_ORIGIN) throw forbidden();
     const params = new URL(c.req.url).searchParams;
     const history = c.req.method === 'GET' && c.req.path.endsWith('/consents/history');
     if ([...params.keys()].some(key => !history || key !== 'cursor') || params.getAll('cursor').length > 1)
@@ -29,6 +30,10 @@ export function createConsentsRoutes(injected?: ConsentDependencies) {
     if (!c.req.header('Content-Type')?.toLowerCase().startsWith('multipart/form-data;')) throw new ConsentError(415, 'INVALID_INPUT');
     const result = await registerConsent(academicActor(c), c.req.param('id'), c.req.raw, deps());
     return c.json(result, result.acknowledgement.repeated ? 200 : 201);
+  });
+  routes.post('/:id/consents/revocations', async c => {
+    if (c.req.header('Content-Type')?.split(';')[0]?.trim().toLowerCase() !== 'application/json') throw new ConsentError(415, 'INVALID_INPUT');
+    return c.json(await revokeConsent(academicActor(c), c.req.param('id'), c.req.raw));
   });
   routes.get('/:id/consents/history', async c => c.json(await getConsentHistory(academicActor(c), c.req.param('id'), c.req.query('cursor'))));
   routes.get('/:id/consents/operations/:requestId', async c => c.json(await getConsentOperation(academicActor(c), c.req.param('id'), c.req.param('requestId'))));
