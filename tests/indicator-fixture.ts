@@ -7,6 +7,7 @@ import { db } from '../src/db/client.js';
 import { calculationRuns, gameSessions } from '../src/db/schema/game.js';
 import { envelopeSchema, type Envelope } from '../src/modules/tareas/runtime/contract.js';
 import { processOne } from '../src/modules/evolucion/processor.js';
+import { calculate } from '../src/modules/evolucion/tg01.js';
 import { gameDependencies, gameFixture, testGameApp } from './game-fixture.js';
 
 export const INDICATOR_FIXTURE_VERSION = 1;
@@ -106,3 +107,56 @@ export async function runSession(world: World, spec: SessionSpec = {}, student =
 // la consume cualquier `processOne` posterior; para conservarla pendiente créela la última.
 // Avanza una sesión con cálculo pendiente con el procesador real (auxiliar para el ensayo de instantánea del resumen).
 export const advancePending = () => processOne(gameDependencies);
+
+// ───────────────────────── Capa b: volumen de curso/año (T-C02) ─────────────────────────
+// Inserciones directas en las tablas reales (MSG-integrador-016, admitido técnicamente). Los valores salen de `calculate()` sobre ensayos
+// sintéticos deterministas; no se copian fórmulas. Limitaciones declaradas: (1) no hay ensayos crudos (raw_events) ni acuses, por lo que
+// `recordedTrialCount` NO es representativo y este conjunto no acredita evidencia, ingesta, detalle de sesión ni gameplay; (2) la siembra
+// usa `session_replication_role = replica` en una sola transacción para saltar los triggers de historial, solo en la BD de tests.
+export type VolumeRecord = { generatorVersion: number; schema: string; students: number; assignments: number; sessions: number; groupId: string; periodFrom: string; periodTo: string; studentIds: string[] };
+const dummyContext = { sessionId: randomUUID(), publishedVersionId: randomUUID(), configVersion: 1, configurationHash: 'a'.repeat(64), gameBuildId: 'tg01-viewport-rebuild-2' };
+const VARIANTS: SessionSpec[] = [{}, { durationMs: 30000, state: 'interrupted', trials: COMPLETE_TRIALS.filter(t => t.at < 30000) }];
+
+export async function seedCourseYear(world: World, options: { sessions: number; students?: number }): Promise<VolumeRecord> {
+  const students = options.students ?? 40, needed = Math.ceil(options.sessions / 10), assignmentsCount = Math.ceil(needed / students);
+  const groupId = world.f.aGroups[0]!.id, teacherId = world.f.a.account.id as string, versionId = world.f.versionId;
+  const template = VARIANTS.flatMap((spec, variant) => calculate(buildEnvelope(dummyContext, spec), true).indicators.map(i => ({ variant, metric_code: i.metricCode, scope: i.scope,
+    status: i.status, value: i.value, unit: i.unit, numerator: i.numerator, denominator: i.denominator, sample_size: i.sampleSize, reason: i.unavailabilityReason })));
+  const from = '2026-02-02T13:00:00Z';
+  const studentIds = await db.transaction(async tx => {
+    await tx.execute(sql`set local session_replication_role = replica`);
+    await tx.execute(sql`create temp table volume_students on commit drop as select gen_random_uuid() id, n from generate_series(1, ${students}::int) n`);
+    await tx.execute(sql`insert into students (id, group_id, student_code, first_name, last_name, is_active)
+      select id, ${groupId}::uuid, 'VOL-' || n, 'Participante', 'Volumen ' || n, true from volume_students`);
+    await tx.execute(sql`create temp table volume_assignments on commit drop as select gen_random_uuid() id, n from generate_series(1, ${assignmentsCount}::int) n`);
+    await tx.execute(sql`insert into task_assignments (id, task_id, published_version_id, group_id, created_by_account_id, starts_at, ends_at, max_attempts, status, creation_request_id, request_hash)
+      select id, 'TG-01', ${versionId}::uuid, ${groupId}::uuid, ${teacherId}::uuid, ${from}::timestamptz, ${from}::timestamptz + interval '400 days', 10, 'OPEN', gen_random_uuid(), 'volume-' || n from volume_assignments`);
+    await tx.execute(sql`create temp table volume_recipients on commit drop as
+      select gen_random_uuid() id, a.id assignment_id, s.id student_id from volume_assignments a cross join volume_students s`);
+    await tx.execute(sql`insert into task_assignment_recipients (id, assignment_id, student_id) select id, assignment_id, student_id from volume_recipients`);
+    // Una fila por sesión; `k` ordena el tiempo para que cada inicio sea distinto y estable.
+    await tx.execute(sql`create temp table volume_sessions on commit drop as
+      select gen_random_uuid() id, r.id recipient_id, r.student_id, n attempt, row_number() over (order by r.id, n) k
+      from volume_recipients r cross join generate_series(1, 10) n order by r.id, n limit ${options.sessions}::int`);
+    await tx.execute(sql`insert into task_sessions (id, recipient_id, student_id, task_id, group_id_at_start, launch_mode, attempt_number, execution_status, processing_status,
+        prepared_at, start_allowed_until, started_at_server, start_request_id, upload_allowed_until, closed_received_at, participation_authorization_ref)
+      select id, recipient_id, student_id, 'TG-01', ${groupId}::uuid, 'SUPERVISED', attempt, 'COMPLETED', 'COMPLETED',
+        ${from}::timestamptz + k * interval '40 minutes' - interval '10 minutes', ${from}::timestamptz + k * interval '40 minutes' + interval '1 hour', ${from}::timestamptz + k * interval '40 minutes',
+        gen_random_uuid(), ${from}::timestamptz + k * interval '40 minutes' + interval '1 hour', ${from}::timestamptz + k * interval '40 minutes' + interval '3 minutes', 'SYNTHETIC-VOLUME'
+      from volume_sessions`);
+    await tx.execute(sql`insert into indicator_calculation_runs (id, session_id, rule_version_id, run_number, evidence_hash, status, created_at, started_at, finished_at, attempt_count, evidence_decisions, summary)
+      select gen_random_uuid(), s.id, c.rule_version_id, 1, encode(sha256(s.id::text::bytea), 'hex'), 'SUCCEEDED', ${from}::timestamptz + s.k * interval '40 minutes' + interval '4 minutes',
+        ${from}::timestamptz + s.k * interval '40 minutes' + interval '4 minutes', ${from}::timestamptz + s.k * interval '40 minutes' + interval '5 minutes', 1, '[]'::jsonb, '{}'::jsonb
+      from volume_sessions s cross join task_version_configurations c where c.published_version_id = ${versionId}::uuid`);
+    await tx.execute(sql`insert into calculated_indicators (id, run_id, metric_code, scope, availability_status, value, unit, numerator, denominator, sample_size, unavailability_reason)
+      select gen_random_uuid(), r.id, t.metric_code, t.scope, t.status, t.value, t.unit, t.numerator, t.denominator, t.sample_size, t.reason
+      from indicator_calculation_runs r join volume_sessions s on s.id = r.session_id
+      join jsonb_to_recordset(${JSON.stringify(template)}::jsonb) as t(variant int, metric_code text, scope text, status text, value numeric, unit text, numerator int, denominator int, sample_size int, reason text)
+        on t.variant = (s.k % 2)`);
+    await tx.execute(sql`update task_sessions s set active_calculation_run_id = r.id from indicator_calculation_runs r where r.session_id = s.id and s.participation_authorization_ref = 'SYNTHETIC-VOLUME'`);
+    const rows = await tx.execute(sql`select id from volume_students order by n`);
+    return rows.rows.map(r => r.id as string);
+  });
+  return { generatorVersion: INDICATOR_FIXTURE_VERSION, schema: 'migraciones existentes (sin migración nueva)', students, assignments: assignmentsCount, sessions: options.sessions, groupId,
+    periodFrom: from, periodTo: new Date(Date.parse(from) + options.sessions * 40 * 60000).toISOString(), studentIds };
+}
