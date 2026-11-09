@@ -19,6 +19,7 @@ import { requestInput, createInput } from './dto.js';
 import { accessCodes, accessClaims } from '../../../db/schema/access.js';
 import { accessDigest, accessSettings, codeInput, newCode, openCode, sealCode } from './access-security.js';
 import { accessLimit } from './access-limit.js';
+import { consentRecords, consentEvents } from '../../../db/schema/consents.js';
 
 type SessionRow = typeof gameSessions.$inferSelect;
 type Capability = typeof runtimeCapabilities.$inferSelect;
@@ -26,6 +27,27 @@ function resourceId(id: string) { if (!uuid.safeParse(id).success) throw notFoun
 
 export function createGameService(deps: GameDependencies = {}) {
   const participation = participationProvider(deps);
+  async function requireStartedAuthorization(tx: Tx, s: SessionRow) {
+    if (!s.startedAtServer || !s.attemptNumber || !s.startRequestId || !s.participationAuthorizationRef) throw new GameError(403, 'PARTICIPATION_BLOCKED');
+    const reference = s.participationAuthorizationRef;
+    if (reference.startsWith('SYNTHETIC-')) {
+      if (syntheticEnabled(deps) && (deps.testParticipation && reference === `SYNTHETIC-J02:${s.studentId}` ||
+        deps.localSynthetic && reference === `SYNTHETIC-LOCAL:${s.studentId}`)) return;
+      throw new GameError(403, 'PARTICIPATION_BLOCKED');
+    }
+    const id = reference.slice('CONSENT:'.length);
+    if (!reference.startsWith('CONSENT:') || !uuid.safeParse(id).success) throw new GameError(403, 'PARTICIPATION_BLOCKED');
+    const [record] = await tx.select({ id: consentRecords.id }).from(consentRecords)
+      .innerJoin(consentEvents, and(eq(consentEvents.recordId, consentRecords.id), eq(consentEvents.studentId, consentRecords.studentId), inArray(consentEvents.type, ['REGISTER', 'REPLACE'])))
+      .where(and(eq(consentRecords.id, id), eq(consentRecords.studentId, s.studentId))).limit(1);
+    if (!record) throw new GameError(403, 'PARTICIPATION_BLOCKED');
+  }
+  async function codeParticipation(tx: Tx, c: typeof accessCodes.$inferSelect, studentId: string, now: Date) {
+    if (c.scope === 'PLAY_AND_SUBMIT') { await requireParticipation(participation, tx, studentId, now); return; }
+    const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, c.sessionId!));
+    if (!s || s.studentId !== studentId || s.recipientId !== c.recipientId) throw new GameError(403, 'PARTICIPATION_BLOCKED');
+    await requireStartedAuthorization(tx, s);
+  }
   const methodAllowed = (rule: typeof indicatorRules.$inferSelect) => hash(rule.definition) === rule.definitionHash &&
     hash(rule.definition) === hash(RULE) && (rule.approvalStatus === 'APPROVED' || syntheticEnabled(deps));
   async function ownGroup(tx: Tx, actor: AcademicActor, id: string) {
@@ -115,7 +137,10 @@ export function createGameService(deps: GameDependencies = {}) {
       const reasons: string[] = [];
       try { await ready(tx, a, now); } catch (error) { reasons.push(error instanceof GameError ? error.reason ?? 'TASK_UNAVAILABLE' : 'TASK_UNAVAILABLE'); }
       if (s.groupId !== a.groupId) reasons.push('PARTICIPATION_BLOCKED');
-      try { await requireParticipation(participation, tx, s.id, now); } catch { reasons.push('PARTICIPATION_BLOCKED'); }
+      try { await requireParticipation(participation, tx, s.id, now); } catch (error) {
+        if (!(error instanceof GameError) || error.status === 503) throw error;
+        reasons.push('PARTICIPATION_BLOCKED');
+      }
       if (attemptsStarted >= a.maxAttempts) reasons.push('ATTEMPT_LIMIT');
       if (active?.executionStatus === 'RUNNING' || active?.executionStatus === 'READY' && active.launchMode === 'CODE') reasons.push('ACTIVE_SESSION');
       detail.push({ id: r.id, studentId: s.id, studentDisplayName: `${s.firstName} ${s.lastName}`, studentCode: s.studentCode,
@@ -218,7 +243,10 @@ export function createGameService(deps: GameDependencies = {}) {
     if (status !== 'ACTIVE') reasons.push('CODE_UNAVAILABLE');
     const [student] = await tx.select().from(students).where(eq(students.id, r.studentId));
     if (!student || student.groupId !== a!.groupId) reasons.push('PARTICIPATION_BLOCKED');
-    try { await requireParticipation(participation, tx, r.studentId, now); } catch { reasons.push('PARTICIPATION_BLOCKED'); }
+    try { await codeParticipation(tx, c, r.studentId, now); } catch (error) {
+      if (!(error instanceof GameError) || error.status === 503) throw error;
+      reasons.push('PARTICIPATION_BLOCKED');
+    }
     if (c.scope === 'PLAY_AND_SUBMIT') try { await ready(tx, a!, now, true); } catch { reasons.push('TASK_UNAVAILABLE'); }
     return { id: c.id, recipientId: c.recipientId, scope: c.scope, sessionId: c.sessionId, status, createdAt: c.createdAt.toISOString(), expiresAt: c.expiresAt.toISOString(), lastClaimedAt: c.lastClaimedAt?.toISOString() ?? null, canReveal: !reasons.length, unavailableReasons: reasons };
   }
@@ -226,7 +254,11 @@ export function createGameService(deps: GameDependencies = {}) {
     const now = new Date(), scope = sessionId ? 'SUBMIT_ONLY' as const : 'PLAY_AND_SUBMIT' as const;
     const [student] = await tx.select().from(students).where(eq(students.id, r.studentId));
     if (!student || student.groupId !== a.groupId) throw conflict('PARTICIPATION_BLOCKED');
-    await requireParticipation(participation, tx, r.studentId, now);
+    if (sessionId) {
+      const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, sessionId));
+      if (!s || s.studentId !== r.studentId || s.recipientId !== r.id) throw notFound();
+      await requireStartedAuthorization(tx, s);
+    } else await requireParticipation(participation, tx, r.studentId, now);
     if (!sessionId) {
       await ready(tx, a, now, true);
       const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
@@ -338,26 +370,31 @@ export function createGameService(deps: GameDependencies = {}) {
         const [c] = await tx.select().from(accessCodes).where(eq(accessCodes.id, initial.id)).for('update');
         const now = new Date(); if (!usableCode(c!)) throw accessUnavailable();
         await currentIssuer(tx, c!.issuedBy, a!.groupId);
-        const eligibility = await requireParticipation(participation, tx, r.studentId, now);
         const [student] = await tx.select().from(students).where(eq(students.id, r.studentId)); if (student!.groupId !== a!.groupId) throw accessUnavailable();
         const [old] = await tx.select().from(accessClaims).where(eq(accessClaims.claimId, input.claimId));
         if (old) {
           const [cap] = await tx.select().from(runtimeCapabilities).where(eq(runtimeCapabilities.id, old.capabilityId));
           if (old.codeId !== c!.id || cap!.secretDigest !== fingerprint || old.submissionId !== (input.submissionId ?? null) || recovery && old.sessionId !== input.sessionId || cap!.revokedAt || cap!.expiresAt <= now) throw accessUnavailable();
           const [s] = await tx.select().from(gameSessions).where(eq(gameSessions.id, old.sessionId));
-          if (s!.executionStatus === 'READY') { await ready(tx, a!, now); if (s!.startAllowedUntil <= now) throw accessUnavailable(); }
+          if (recovery || s!.executionStatus !== 'READY') {
+            await requireStartedAuthorization(tx, s!);
+            if (c!.scope === 'SUBMIT_ONLY' && c!.sessionId !== s!.id) throw accessUnavailable();
+            if (recovery && c!.scope === 'PLAY_AND_SUBMIT') await ready(tx, a!, now);
+          } else { await requireParticipation(participation, tx, r.studentId, now); await ready(tx, a!, now); if (s!.startAllowedUntil <= now) throw accessUnavailable(); }
           return context(tx, s!, cap!);
         }
         let s: SessionRow;
         if (recovery) {
           const [row] = await tx.select().from(gameSessions).where(eq(gameSessions.id, input.sessionId!)).for('update');
           if (!row || row.recipientId !== r.id || row.attemptNumber === null || c!.scope === 'SUBMIT_ONLY' && c!.sessionId !== row.id) throw accessUnavailable();
+          await requireStartedAuthorization(tx, row);
           if (c!.scope === 'PLAY_AND_SUBMIT') await ready(tx, a!, now);
           const [receipt] = await tx.select().from(resultReceipts).where(eq(resultReceipts.sessionId, row.id));
           if (receipt && receipt.submissionId !== input.submissionId) throw accessUnavailable();
           s = row;
         } else {
           if (c!.scope !== 'PLAY_AND_SUBMIT') throw accessUnavailable();
+          const eligibility = await requireParticipation(participation, tx, r.studentId, now);
           s = await prepare(tx, r, a!, now, eligibility.validUntil, c!);
         }
         const [cap] = await tx.insert(runtimeCapabilities).values({ sessionId: s.id, claimId: input.claimId, secretDigest: fingerprint, sourceAccessCodeId: c!.id,
@@ -439,14 +476,16 @@ export function createGameService(deps: GameDependencies = {}) {
         const { requestId, ...content } = input;
         const op = await operation(tx, actor, input, recovery ? 'RECOVER' : 'LAUNCH', target, content, async () => {
           await lockStudent(tx, r.studentId); await expire(tx, r.studentId);
-          const now = new Date(), eligibility = await requireParticipation(participation, tx, r.studentId, now);
+          const now = new Date();
           let s: SessionRow;
           if (owned) {
             const [latest] = await tx.select().from(gameSessions).where(eq(gameSessions.id, owned.s.id)).for('update'); s = latest!;
             if (s.attemptNumber === null) throw conflict('SESSION_NOT_STARTED');
+            await requireStartedAuthorization(tx, s);
             const [receipt] = await tx.select().from(resultReceipts).where(eq(resultReceipts.sessionId, s.id));
             if (receipt && receipt.submissionId !== input.submissionId) throw conflict('RESULT_CONFLICT');
           } else {
+            const eligibility = await requireParticipation(participation, tx, r.studentId, now);
             s = await prepare(tx, r, a, now, eligibility.validUntil);
           }
           const id = randomUUID(), token = randomBytes(32).toString('base64url'), sealed = encryptGrant(token, `${s.id}:${id}`);
@@ -457,6 +496,8 @@ export function createGameService(deps: GameDependencies = {}) {
         });
         const [g] = await tx.select().from(launchGrants).where(eq(launchGrants.id, op.id));
         if (!g || g.invalidatedAt || g.expiresAt <= new Date()) throw conflict('GRANT_NOT_USABLE');
+        if (owned) await requireStartedAuthorization(tx, owned.s);
+        else await requireParticipation(participation, tx, r.studentId, new Date());
         return { repeated: op.repeated, detail: { sessionId: g.sessionId, grantId: g.id, launchGrant: decryptGrant(g.secretCiphertext, g.encryptionKeyId, `${g.sessionId}:${g.id}`), expiresAt: g.expiresAt.toISOString(), runtimeOrigin: runtimeSettings().origin } };
       });
     },
@@ -478,13 +519,15 @@ export function createGameService(deps: GameDependencies = {}) {
           if (g!.claimId !== input.claimId || cap!.secretDigest !== secretDigest(input.runtimeSecret)) throw new GameError(409, 'CLAIM_CONFLICT');
           if (cap!.revokedAt || cap!.expiresAt <= new Date()) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
           if (s!.executionStatus === 'READY') { await currentIssuer(tx, g!.issuedBy, a.groupId); await requireParticipation(participation, tx, s!.studentId, new Date()); await ready(tx, a, new Date()); }
+          else { await currentIssuer(tx, g!.issuedBy, a.groupId); await requireStartedAuthorization(tx, s!); }
           return context(tx, s!, cap!);
         }
         const now = new Date();
         if (g!.expiresAt <= now) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
         await currentIssuer(tx, g!.issuedBy, a.groupId);
-        await requireParticipation(participation, tx, s!.studentId, now);
         const recovery = g!.scope === 'RECOVER_SUBMISSION';
+        if (recovery) await requireStartedAuthorization(tx, s!);
+        else await requireParticipation(participation, tx, s!.studentId, now);
         if (!recovery) { await ready(tx, a, now); if (s!.executionStatus !== 'READY' || s!.startAllowedUntil <= now) throw new GameError(409, 'SESSION_NOT_STARTABLE'); }
         const expires = recovery ? new Date(now.getTime() + 86400000) : s!.startAllowedUntil;
         const [cap] = await tx.insert(runtimeCapabilities).values({ sessionId: s!.id, claimId: input.claimId, secretDigest: secretDigest(input.runtimeSecret),
@@ -498,7 +541,7 @@ export function createGameService(deps: GameDependencies = {}) {
         if (s.executionStatus === 'READY') {
           const { a } = await sessionConfig(tx, s);
           await sourceAllowed(tx, s, cap); await ready(tx, a, new Date()); await requireParticipation(participation, tx, s.studentId, new Date());
-        }
+        } else await requireStartedAuthorization(tx, s);
         return context(tx, s, cap);
       });
     },
@@ -510,11 +553,12 @@ export function createGameService(deps: GameDependencies = {}) {
         const { a } = await sessionConfig(tx, s);
         if (s.executionStatus === 'READY') await sourceAllowed(tx, s, cap);
         else if (s.launchMode === 'SUPERVISED') await sourceAllowed(tx, s, cap);
-        const eligibility = await requireParticipation(participation, tx, s.studentId, now);
-        await ready(tx, a, now);
         if (s.executionStatus === 'RUNNING') {
           if (s.startRequestId !== startId) throw new GameError(409, 'SESSION_ALREADY_STARTED');
+          await requireStartedAuthorization(tx, s);
         } else {
+          const eligibility = await requireParticipation(participation, tx, s.studentId, now);
+          await ready(tx, a, now);
           if (cap.startAllowedUntil <= now) throw new GameError(409, 'SESSION_NOT_STARTABLE');
           const [student] = await tx.select().from(students).where(eq(students.id, s.studentId));
           if (student!.groupId !== a.groupId) throw new GameError(403, 'PARTICIPATION_BLOCKED');
@@ -542,7 +586,7 @@ export function createGameService(deps: GameDependencies = {}) {
         }
         if (!s.startedAtServer || !s.attemptNumber) throw new GameError(409, 'SESSION_NOT_STARTED');
         if (!cap.canSubmit) throw new GameError(401, 'RUNTIME_UNAUTHENTICATED');
-        await requireParticipation(participation, tx, s.studentId, new Date());
+        await requireStartedAuthorization(tx, s);
         const { c } = await sessionConfig(tx, s);
         if (e.publishedVersionId !== c.version.id || e.configVersion !== c.version.version || e.contractVersion !== c.config.contractVersion || e.gameBuildId !== c.config.gameBuildId || e.configurationHash !== c.config.configurationHash || e.taskId !== s.taskId) throw new GameError(409, 'VERSION_UNSUPPORTED');
         const [global] = await tx.select().from(resultReceipts).where(eq(resultReceipts.submissionId, e.submissionId));

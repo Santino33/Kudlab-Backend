@@ -185,8 +185,7 @@ describe('J03 access codes with PostgreSQL and isolated synthetic participation'
     const ctx = await ok('/game-runtime/access/recover', recovery); expect(ctx.capabilities.canStart).toBe(false); expect(Date.parse(ctx.uploadAllowedUntil)).toBeLessThanOrEqual(Date.parse(rc.expiresAt));
     const e = envelopeSchema.parse({ contractVersion: '1.1', sessionId: c.sessionId, submissionId, taskId: 'TG-01', publishedVersionId: c.publishedVersionId, configVersion: c.configVersion, configurationHash: c.configurationHash, gameBuildId: c.gameBuildId, state: 'interrupted', terminationReason: 'user_exit', clock: { id: randomUUID(), timeOriginUnixMs: Date.now() }, timing: { startedAtMs: 0, finishedAtMs: 100, lastCheckpointAtMs: 100 }, device: { viewportWidth: 390, viewportHeight: 844, stageWidthCss: 390, stageHeightCss: 772, stageScale: .8125, touchCapable: false }, events: [], incidents: [] });
     authorizations.delete(f.secondStudent.id);
-    expect((await request(`/game-runtime/sessions/${c.sessionId}/results`, 'POST', e, { authorization: `Bearer ${recovery.runtimeSecret}` })).status).toBe(403);
-    authorizations.set(f.secondStudent.id, new Date(Date.now() + 86400000));
+    // D-04: historical authorization, not current participation, governs this delivery.
     await ok(`/game-runtime/sessions/${c.sessionId}/results`, e, { authorization: `Bearer ${recovery.runtimeSecret}` }, 201);
     expect((await db.select().from(gameSessions).where(eq(gameSessions.id, c.sessionId)))[0]!.attemptNumber).toBe(1);
   });
