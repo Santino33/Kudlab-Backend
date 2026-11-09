@@ -102,5 +102,7 @@ export async function runSession(world: World, spec: SessionSpec = {}, student =
   return { sessionId: context.sessionId as string, studentId: student.id, assignmentId: a.id, versionId: f.versionId };
 }
 
+// Límite del generador: `processOne` toma siempre la ejecución PENDING más antigua. Una sesión creada con `processing: 'none'`
+// la consume cualquier `processOne` posterior; para conservarla pendiente créela la última.
 // Avanza una sesión con cálculo pendiente con el procesador real (auxiliar para el ensayo de instantánea del resumen).
 export const advancePending = () => processOne(gameDependencies);
