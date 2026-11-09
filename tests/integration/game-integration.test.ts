@@ -177,9 +177,7 @@ describe('J-02 real PostgreSQL, synthetic participation only', () => {
   it('blocks revoked participation, allows accepted identical receipts, recovers submission without another attempt', async () => {
     const f = await fixture(), l = await launch(f); await start(l); const e = envelope(l.context), path = `/game-runtime/sessions/${e.sessionId}/results`;
     authorizations.delete(f.student.id);
-    expect((await request(path, 'POST', e, l.runtime)).status).toBe(403);
-    expect(await db.select().from(rawEvents)).toHaveLength(0);
-    authorizations.set(f.student.id, new Date(Date.now() + 86400000));
+    // D-04: authorization captured at start survives later revocation.
     await db.update(runtimeCapabilities).set({ expiresAt: new Date(Date.now() - 1000) });
     expect((await request(path, 'POST', e, l.runtime)).status).toBe(401);
     const g = await (await request(`/task-sessions/${e.sessionId}/recovery-grants`, 'POST', { requestId: randomUUID(), submissionId: e.submissionId }, f.a.teacher)).json();
@@ -206,12 +204,12 @@ describe('J-02 real PostgreSQL, synthetic participation only', () => {
     expect((await request(`/task-sessions/${e.sessionId}/evidence?kind=incidents&cursor=${first.nextCursor}`, 'GET', undefined, f.a.teacher)).status).toBe(400);
     await expect(db.update(rawEvents).set({ result: 'miss' })).rejects.toThrow();
   });
-  it('normal composition remains unavailable and denies bad origins, cookies-only runtime, unknown fields and oversized bodies', async () => {
+  it('normal composition denies synthetic-only consent and bad origins, cookies-only runtime, unknown fields and oversized bodies', async () => {
     const f = await fixture(), l = await launch(f);
     const { createApp } = await import('../../src/app.js');
     const normal = createApp();
     const blocked = await normal.request(`/api/v1/game-runtime/sessions/${l.context.sessionId}/start`, { method: 'POST', headers: { 'content-type': 'application/json', ...l.runtime }, body: JSON.stringify({ startId: randomUUID() }) });
-    expect(blocked.status).toBe(503);
+    expect(blocked.status).toBe(403);
     expect((await request('/game-runtime/launches/claim', 'POST', l.claim, { origin: 'https://evil.invalid', authorization: `Bearer ${l.grant.launchGrant}` })).status).toBe(403);
     expect((await request(`/game-runtime/sessions/${l.context.sessionId}`, 'GET', undefined, f.a.teacher)).status).toBe(401);
     expect((await request('/game-runtime/launches/claim', 'POST', { ...l.claim, studentId: f.student.id }, { authorization: `Bearer ${l.grant.launchGrant}` })).status).toBe(400);

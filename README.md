@@ -105,6 +105,32 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 
 ## Verificación
 
+### Almacenamiento privado de consentimiento — bloque T-05
+
+`src/modules/academico/consents/consent-storage.ts` contiene el adaptador R2;
+todavía no está conectado a rutas docentes, persistencia ni Compose. Lee las cuatro
+variables `CONSENT_STORAGE_*` de `.env.example` desde el entorno privado Backend.
+Solo admite el endpoint S3 HTTPS **Default** de R2 y claves explícitas; configuración
+ausente/inválida deja sus operaciones indisponibles sin impedir crear el adaptador.
+
+El servicio llamador debe autorizar al docente y validar el documento completo antes
+de reservar/subir. `describeConsentEvidence` liga un UUID v4 generado por servidor a
+bytes/tamaño/SHA-256; **no valida PDF/JPEG/PNG**. `putImmutable` usa `If-None-Match: *`
+y confirma los bytes mediante GET, también ante 412 o respuesta de subida incierta.
+No sobrescribe ni borra; un GET 404 tras un PUT incierto sigue siendo indisponibilidad,
+no prueba de rechazo definitivo. El reintento explícito conserva referencia y bytes.
+
+`readVerified` comprueba metadatos, tamaño real y SHA-256 antes de devolver el buffer,
+con máximo de 10 MiB. Cada operación tiene 30 s totales, admite cancelación y cierra
+el stream; el SDK no reintenta automáticamente. Los errores expuestos por este
+adaptador son `UNAVAILABLE` o `EVIDENCE_MISMATCH`, sin diagnóstico crudo del proveedor.
+La futura descarga debe reautorizar después del GET y tratar integridad no comprobable
+como indisponibilidad, conservando el consentimiento. `close()` libera el cliente SDK.
+
+Prueba local sin PostgreSQL, credenciales reales ni peticiones externas:
+`npm test -- tests/unit/consent-storage.test.ts`. Usa serialización/firma del SDK y
+transporte simulado; no acredita R2 real, validación estructural ni aceptación funcional.
+
 ### Correo con Gmail
 
 1. Elige una cuenta remitente de Gmail o Workspace con permiso para enviar. En tu cuenta de Google, habilita la verificación en dos pasos y crea una contraseña de aplicación **si la cuenta lo permite**. Si la opción está bloqueada, consulta al administrador antes de cambiar mecanismo; esta integración no implementa OAuth.
