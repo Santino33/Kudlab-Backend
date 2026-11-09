@@ -188,14 +188,14 @@ export function createGameService(deps: GameDependencies = {}) {
       await currentIssuer(tx, g.issuedBy, a.groupId);
     }
   }
-  async function prepare(tx: Tx, r: typeof recipients.$inferSelect, a: typeof assignments.$inferSelect, now: Date, validUntil: Date, code?: Code) {
+  async function prepare(tx: Tx, r: typeof recipients.$inferSelect, a: typeof assignments.$inferSelect, now: Date, validUntil: Date | null, code?: Code) {
     const configured = await ready(tx, a, now);
     const existing = await tx.select().from(gameSessions).where(and(eq(gameSessions.studentId, r.studentId), eq(gameSessions.taskId, a.taskId), inArray(gameSessions.executionStatus, ['READY', 'RUNNING'])));
     if (existing[0]?.executionStatus === 'RUNNING' || existing[0] && (code || existing[0].launchMode === 'CODE' || existing[0].recipientId !== r.id)) throw conflict('ACTIVE_SESSION');
     if (!existing[0] && configured.config.contractVersion !== '1.1') throw conflict('CONFIGURATION_UNSUPPORTED');
     const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
     if (count!.n >= a.maxAttempts) throw conflict('ATTEMPT_LIMIT');
-    const until = new Date(Math.min((existing[0]?.preparedAt ?? now).getTime() + 900000, a.endsAt.getTime(), validUntil.getTime(), code?.expiresAt.getTime() ?? Infinity));
+    const until = new Date(Math.min((existing[0]?.preparedAt ?? now).getTime() + 900000, a.endsAt.getTime(), validUntil?.getTime() ?? Infinity, code?.expiresAt.getTime() ?? Infinity));
     if (existing[0]) {
       const s = existing[0];
       await tx.update(runtimeCapabilities).set({ revokedAt: now }).where(eq(runtimeCapabilities.sessionId, s.id));
