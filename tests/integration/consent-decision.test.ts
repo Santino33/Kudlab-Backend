@@ -26,7 +26,11 @@ it('CA-03/04/07: complete course batch, no truncation, missing/foreign/duplicate
     expect(await readConsentDecisions(tx, f.bGroups[0]!.id, [rows[0]!.id], at)).toEqual({ kind: 'unavailable' });
     expect(await readConsentDecision(tx, randomUUID(), at)).toEqual({ kind: 'unavailable' });
   });
-  await db.insert(consentEvents).values({ studentId: rows[0]!.id, recordId, version: 2, type: 'REVOKE', reason: 'Ficticio', actorId: f.a.account.id, actorName: 'Docente ficticio' });
+  await db.transaction(async tx => {
+    const original = await readConsentDecisions(tx, f.aGroups[0]!.id, [rows[0]!.id], at);
+    await db.insert(consentEvents).values({ studentId: rows[0]!.id, recordId, version: 2, type: 'REVOKE', reason: 'Ficticio', actorId: f.a.account.id, actorName: 'Docente ficticio' });
+    expect(await readConsentDecisions(tx, f.aGroups[0]!.id, [rows[0]!.id], at)).toEqual(original);
+  }, { isolationLevel: 'repeatable read' });
   expect(await db.transaction(tx => readConsentDecision(tx, rows[0]!.id, at))).toEqual({ kind: 'available', state: 'REVOKED', version: 2 });
 });
 it('CA-08: isolation selected before first query; default retained; failed operation rolls back activity', async () => {
@@ -36,5 +40,12 @@ it('CA-08: isolation selected before first query; default retained; failed opera
   const isolation = async (tx: Parameters<typeof readConsentDecision>[0]) => (await tx.execute(sql`show transaction_isolation`)).rows[0]!.transaction_isolation;
   expect(await withAcademicAccess(actor, isolation)).toBe('read committed');
   expect(await withAcademicAccess(actor, isolation, 'TEACHER', { isolationLevel: 'repeatable read' })).toBe('repeatable read');
+  const activity = await db.execute(sql`select * from session_activity where session_id=${actor.sessionId}`);
   await expect(withAcademicAccess(actor, async tx => { await tx.execute(sql`select 1/0`); })).rejects.toThrow();
+  expect((await db.execute(sql`select * from session_activity where session_id=${actor.sessionId}`)).rows).toEqual(activity.rows);
+  await expect(withAcademicAccess(actor, async tx => {
+    await tx.execute(sql`select 1/0`).catch(() => {});
+    expect(await readConsentDecision(tx, randomUUID(), new Date())).toEqual({ kind: 'unavailable' });
+    throw new Error('Abort entire unavailable transaction');
+  })).rejects.toThrow('Abort entire unavailable transaction');
 });
