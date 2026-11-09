@@ -68,3 +68,16 @@ describe('readStudentSessionResults (T-A05)', () => {
     expect(seen).toEqual([x.ids[2], x.ids[1], x.ids[0]]);
   });
 });
+
+import { readIndicatorCatalog } from '../../src/modules/evolucion/read/catalog.service.js';
+import { indicatorDefinitionsResponseSchema } from '../../src/modules/evolucion/read/dto.js';
+describe('readIndicatorCatalog (T-A06)', () => {
+  beforeEach(async () => { await reset(); });
+  it('con TG-01 publicada la regla figura como propuesta; ninguna ruta del código la aprueba', async () => {
+    await indicatorWorld();
+    const { items } = await readIndicatorCatalog();
+    expect(indicatorDefinitionsResponseSchema.safeParse({ items }).success).toBe(true);
+    expect(items).toHaveLength(6);
+    expect(items.every(i => i.rule?.approval.current === 'PROPOSED' && i.rule.approval.approvedAt === null)).toBe(true);
+  });
+});
