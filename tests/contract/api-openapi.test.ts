@@ -72,6 +72,15 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(students, 'GET', await request(students, 'GET', undefined, admin), 403);
   await check(`${students}/{id}`, 'GET', await request(`${students}/bad`, 'GET', undefined, teacher), 404);
   await check(`${students}/{id}`, 'GET', await request(`${students}/${student.id}`, 'GET', undefined, teacher), 200);
+  const definitions = '/api/v1/indicator-definitions';
+  await check(definitions, 'GET', await request(definitions, 'GET', undefined, teacher), 200);
+  await check(definitions, 'GET', await request(definitions, 'GET', undefined, admin), 403);
+  await check(definitions, 'GET', await request(definitions, 'GET'), 401);
+  const history = `${students}/{id}/indicator-history`;
+  await check(history, 'GET', await request(`${students}/${student.id}/indicator-history`, 'GET', undefined, teacher), 200);
+  await check(history, 'GET', await request(`${students}/${student.id}/indicator-history?limit=0`, 'GET', undefined, teacher), 400);
+  await check(history, 'GET', await request(`${students}/bad/indicator-history`, 'GET', undefined, teacher), 404);
+  await check(history, 'GET', await request(`${students}/${student.id}/indicator-history`, 'GET', undefined, admin), 403);
   await check(`${students}/{id}`, 'PATCH', await request(`${students}/${student.id}`, 'PATCH', { firstName: 'Ejemplo' }, teacher), 200);
   await check(`${students}/{id}/deactivate`, 'POST', await request(`${students}/${student.id}/deactivate`, 'POST', undefined, teacher), 200);
   const roles = '/api/v1/admin-role-requests';
