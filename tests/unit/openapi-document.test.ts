@@ -6,11 +6,11 @@ async function check(doc: Document) {
   await validateDocument(doc);
   await validateExamples(doc);
   const expected: string[] = JSON.parse(readFileSync(new URL('../fixtures/openapi/operations.json', import.meta.url), 'utf8'));
-  expect(expected).toHaveLength(61);
+  expect(expected).toHaveLength(66);
   expect(operations(doc).map(([p, m, o]) => `${m} ${p} ${o.operationId}`).sort()).toEqual(expected);
 }
 
-it('valida OpenAPI completo y las 61 operaciones actuales, no solo sintaxis YAML', async () => {
+it('valida OpenAPI completo y las 66 operaciones actuales, no solo sintaxis YAML', async () => {
   const doc = readContract();
   expect(doc.openapi).toBe('3.1.0');
   expect(doc.info.version).toBe('0.1.0');
