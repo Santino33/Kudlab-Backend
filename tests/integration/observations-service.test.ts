@@ -9,7 +9,7 @@ import { groups, students } from '../../src/db/schema/academic.js';
 import { teacherObservations as observations, teacherObservationRevisions as revisions } from '../../src/db/schema/observations.js';
 import * as consent from '../../src/modules/academico/consents/consent-decision.js';
 import { createObservation, correctObservation, getObservationHistory, getObservationReceipt, getObservationRevisions } from '../../src/modules/seguimiento/observations/observations.service.js';
-import { reset } from '../helpers.js';
+import { login, reset } from '../helpers.js';
 import { assertObservationTestDatabase, observationFixture } from '../observations-fixture.js';
 
 beforeEach(async () => { assertObservationTestDatabase(); await reset(); });
@@ -146,7 +146,7 @@ async function waitForBlockedBy(pid: number) {
   // Database barrier, no timing sleeps and no HTTP/client-visible test controls.
   for (let attempt = 0; attempt < 1000; attempt++) {
     const result = await pool.query('select pid from pg_stat_activity where $1 = any(pg_blocking_pids(pid))', [pid]);
-    if (result.rowCount) return;
+    if (result.rowCount) return Number(result.rows[0]!.pid);
   }
   throw new Error('Expected PostgreSQL lock wait not observed');
 }
@@ -215,4 +215,96 @@ it('T-05/CA-08: sesión vencida durante espera revierte identidad/revisión en r
     expect(await db.select().from(observations)).toHaveLength(0);
     expect(await db.select().from(revisions)).toHaveLength(0);
   } finally { await locker.query('rollback'); await locker.end(); }
+});
+
+it.each(['revocation', 'inactivation', 'transfer'] as const)('T-17/CA-01/07/08: observación toma locks antes de %s, commit único y ámbito posterior vigente', async change => {
+  const f = await observationFixture(), a = await actor(f.a.account.id), registered = await f.activate();
+  // Different authenticated session avoids confusing session-row serialization with student/course locks.
+  const secondary = await login('teacher-a@pilot.edu.co', 'TeacherPass1');
+  const other = new pg.Client({ connectionString: process.env.DATABASE_URL }); await other.connect();
+  let release!: () => void, acquired!: (pid: number) => void;
+  const gate = new Promise<void>(done => { release = done; }), locked = new Promise<number>(done => { acquired = done; });
+  const realRead = consent.readConsentDecision;
+  vi.spyOn(consent, 'readConsentDecision').mockImplementationOnce(async (tx, studentId, at) => {
+    acquired(Number((await tx.execute(sql`select pg_backend_pid() as pid`)).rows[0]!.pid));
+    await gate;
+    return realRead(tx, studentId, at);
+  });
+  const input = f.input(), writing = createObservation(a, f.student.id, input).then(value => value, error => error);
+  let mutation: Promise<unknown> | undefined;
+  try {
+    const pid = await locked;
+    mutation = change === 'revocation' ? Promise.resolve(f.app.request(`${f.consentPath}/revocations`, { method: 'POST',
+      headers: { ...secondary, origin: process.env.SPA_ORIGIN!, 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: randomUUID(), expectedVersion: 1, recordId: registered.acknowledgement.recordId, reason: 'Retiro ficticio posterior al lock' }) })) :
+      other.query(change === 'inactivation' ? 'update students set is_active=false where id=$1' : 'update groups set teacher_id=$2 where id=$1',
+        change === 'inactivation' ? [f.student.id] : [f.student.groupId, f.b.account.id]);
+    await waitForBlockedBy(pid); release();
+    const result = await writing;
+    expect(result).toMatchObject({ repeated: false, receipt: { requestId: input.requestId } });
+    const changed = await mutation;
+    if (change === 'revocation') {
+      expect((changed as Response).status).toBe(200);
+      await expect(createObservation(a, f.student.id, f.input())).rejects.toMatchObject({ fields: [{ reason: 'CONSENT_REQUIRED' }] });
+      expect(await createObservation(a, f.student.id, input)).toEqual({ ...result, repeated: true });
+    } else if (change === 'inactivation') {
+      await expect(createObservation(a, f.student.id, f.input())).rejects.toMatchObject({ fields: [{ reason: 'STUDENT_INACTIVE' }] });
+      expect((await getObservationHistory(a, f.student.id, {})).items).toHaveLength(1);
+    } else {
+      await expect(getObservationHistory(a, f.student.id, {})).rejects.toMatchObject({ status: 404 });
+      const b = await actor(f.b.account.id), history = await getObservationHistory(b, f.student.id, {});
+      expect(history.items).toHaveLength(1); expect(history.items[0]!.author.id).toBe(a.accountId);
+      expect(await getObservationReceipt(b, f.student.id, input.requestId)).toEqual({ receipt: null });
+    }
+    expect(await db.select().from(observations)).toHaveLength(1);
+    expect(await db.select().from(revisions)).toHaveLength(1);
+  } finally { release(); await writing; await mutation?.catch(() => undefined); await other.end(); }
+});
+
+it('T-17/CA-07/08: revocación real mantiene student lock antes del alta, READ COMMITTED ve REVOKED y no persiste', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id), registered = await f.activate();
+  const secondary = await login('teacher-a@pilot.edu.co', 'TeacherPass1');
+  const gate = new pg.Client({ connectionString: process.env.DATABASE_URL }); await gate.connect();
+  const lock = 'observaciones-only-test-revoke-barrier';
+  let revoking: Promise<Response> | undefined, writing: Promise<unknown> | undefined;
+  try {
+    await gate.query('select pg_advisory_lock(hashtextextended($1,0))', [lock]);
+    const pid = Number((await gate.query('select pg_backend_pid() as pid')).rows[0].pid);
+    // Private DB-only barrier in this isolated test DB, never a runtime or HTTP control.
+    await db.execute(sql`create function observation_test_wait_revoke() returns trigger language plpgsql as $$ begin
+      if new.type='REVOKE' then perform pg_advisory_xact_lock(hashtextextended('observaciones-only-test-revoke-barrier',0)); end if;
+      return new; end $$`);
+    await db.execute(sql`create trigger observation_test_wait_revoke before insert on consent_events for each row execute function observation_test_wait_revoke()`);
+    revoking = Promise.resolve(f.app.request(`${f.consentPath}/revocations`, { method: 'POST',
+      headers: { ...secondary, origin: process.env.SPA_ORIGIN!, 'content-type': 'application/json' },
+      body: JSON.stringify({ requestId: randomUUID(), expectedVersion: 1, recordId: registered.acknowledgement.recordId, reason: 'Retiro ficticio anterior al alta' }) }));
+    const revokerPid = await waitForBlockedBy(pid);
+    writing = createObservation(a, f.student.id, f.input()).then(value => value, error => error);
+    await waitForBlockedBy(revokerPid);
+    await gate.query('select pg_advisory_unlock(hashtextextended($1,0))', [lock]);
+    expect((await revoking).status).toBe(200);
+    expect(await writing).toMatchObject({ status: 409, fields: [{ reason: 'CONSENT_REQUIRED' }] });
+    expect(await db.select().from(observations)).toHaveLength(0); expect(await db.select().from(revisions)).toHaveLength(0);
+  } finally {
+    await gate.query('select pg_advisory_unlock_all()'); await writing; await revoking;
+    await db.execute(sql`drop trigger if exists observation_test_wait_revoke on consent_events`);
+    await db.execute(sql`drop function if exists observation_test_wait_revoke()`); await gate.end();
+  }
+});
+
+it('T-17/CA-08: transferencia toma group lock antes del alta, autor anterior no guarda al liberarse', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id); await f.activate();
+  const transfer = new pg.Client({ connectionString: process.env.DATABASE_URL }); await transfer.connect();
+  let writing: Promise<unknown> | undefined;
+  try {
+    await transfer.query('begin');
+    const pid = Number((await transfer.query('select pg_backend_pid() as pid')).rows[0].pid);
+    await transfer.query('update groups set teacher_id=$2 where id=$1', [f.student.groupId, f.b.account.id]);
+    writing = createObservation(a, f.student.id, f.input()).then(value => value, error => error);
+    await waitForBlockedBy(pid); await transfer.query('commit');
+    expect(await writing).toMatchObject({ status: 404 });
+    expect(await db.select().from(observations)).toHaveLength(0); expect(await db.select().from(revisions)).toHaveLength(0);
+    const b = await actor(f.b.account.id);
+    expect((await createObservation(b, f.student.id, f.input())).receipt.revision.actorId).toBe(b.accountId);
+  } finally { await transfer.query('rollback'); await writing; await transfer.end(); }
 });
