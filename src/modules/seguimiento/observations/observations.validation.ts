@@ -6,12 +6,15 @@ export const behaviors = ['ATTENTION', 'FOLLOWING_INSTRUCTIONS'] as const;
 export const frequencies = ['NEVER', 'SOMETIMES', 'ALMOST_ALWAYS', 'ALWAYS'] as const;
 export const areas = ['LANGUAGE_READING', 'MATHEMATICS'] as const;
 const integer = z.number().int().min(-2147483648).max(2147483647);
+// PostgreSQL date has no year zero; reject it at the boundary, not as a database outage.
+const calendarDate = z.iso.date().refine(value => !value.startsWith('0000-'));
 const values = {
   behavior: z.enum(behaviors), frequency: z.enum(frequencies), area: z.enum(areas).nullable().optional().transform(v => v ?? null),
-  observedOn: z.iso.date(), schoolYear: integer, term: z.number().int().min(1).max(4),
+  observedOn: calendarDate, schoolYear: integer, term: z.number().int().min(1).max(4),
 };
 export const observationValues = z.strictObject(values);
-const createSchema = z.strictObject({ requestId: z.uuid(), groupId: z.uuid().optional(), ...values });
+const uuid = z.uuid().transform(value => value.toLowerCase());
+const createSchema = z.strictObject({ requestId: uuid, groupId: uuid.optional(), ...values });
 const correctSchema = createSchema.extend({ expectedVersion: integer.positive() });
 export type ObservationInput = z.infer<typeof createSchema>;
 export type CorrectionInput = z.infer<typeof correctSchema>;
@@ -67,7 +70,7 @@ const numericQuery = <T extends z.ZodType<number, number>>(schema: T) => z.strin
 const listSchema = z.strictObject({
   schoolYear: numericQuery(integer).optional(), term: numericQuery(z.number().int().min(1).max(4)).optional(),
   behavior: z.enum(behaviors).optional(), area: z.enum([...areas, 'UNSPECIFIED']).optional(),
-  observedFrom: z.iso.date().optional(), observedTo: z.iso.date().optional(),
+  observedFrom: calendarDate.optional(), observedTo: calendarDate.optional(),
   cursor: z.string().regex(/^[\w-]{1,2048}$/).optional(), limit: numericQuery(z.number().int().min(1).max(100)).optional(),
 });
 export type ObservationQuery = z.infer<typeof listSchema>;

@@ -14,7 +14,7 @@ import { observationFingerprint, parseObservation, validateObservedOn, type Corr
 
 type Revision = typeof revisions.$inferSelect;
 type Identity = typeof observations.$inferSelect;
-function uuid(value: string) { if (!z.uuid().safeParse(value).success) throw notFound(); return value; }
+function uuid(value: string) { if (!z.uuid().safeParse(value).success) throw notFound(); return value.toLowerCase(); }
 async function ownStudent(tx: AcademicTransaction, actor: AcademicActor, id: string, write = false, groupId?: string) {
   uuid(id);
   const [visible] = await tx.select({ groupId: students.groupId }).from(students).innerJoin(groups, eq(groups.id, students.groupId))
@@ -52,7 +52,14 @@ async function requireEligible(tx: AcademicTransaction, student: typeof students
   if (!student.isActive) throw observationConflict('STUDENT_INACTIVE');
   const decision = await readConsentDecision(tx, student.id, at);
   if (decision.kind !== 'available' || !Number.isInteger(decision.version) || decision.version < 0) throw observationUnavailable();
-  if (decision.state === 'NONE' || decision.state === 'REVOKED') throw observationConflict('CONSENT_REQUIRED');
+  if (decision.state === 'NONE') {
+    if (decision.version !== 0) throw observationUnavailable();
+    throw observationConflict('CONSENT_REQUIRED');
+  }
+  if (decision.state === 'REVOKED') {
+    if (decision.version < 1) throw observationUnavailable();
+    throw observationConflict('CONSENT_REQUIRED');
+  }
   if (decision.state !== 'CURRENT' || decision.version < 1 || decision.validUntil !== null ||
     typeof decision.authorizationReference !== 'string' || !decision.authorizationReference) throw observationUnavailable();
 }
@@ -63,6 +70,7 @@ export function correctObservation(actor: AcademicActor, studentId: string, obse
   return writeObservation(actor, studentId, parseObservation(body, true) as CorrectionInput, uuid(observationId));
 }
 async function writeObservation(actor: AcademicActor, studentId: string, input: ObservationInput | CorrectionInput, observationId?: string) {
+  studentId = uuid(studentId);
   const fingerprint = observationFingerprint(studentId, input, observationId);
   return withAcademicAccess(actor, async tx => {
     await tx.execute(sql`select pg_advisory_xact_lock(hashtextextended(${`${actor.accountId}:${input.requestId}`}, 0))`);
@@ -92,7 +100,7 @@ async function writeObservation(actor: AcademicActor, studentId: string, input: 
   });
 }
 export function getObservationReceipt(actor: AcademicActor, studentId: string, requestId: string) {
-  uuid(requestId);
+  studentId = uuid(studentId); requestId = uuid(requestId);
   return withAcademicAccess(actor, async tx => {
     await ownStudent(tx, actor, studentId);
     const row = await priorRevision(tx, actor, requestId);
@@ -116,6 +124,7 @@ function identityDto(row: Identity, name: string) {
   return { id: row.id, studentId: row.studentId, author: { id: row.authorId, name }, createdAt: row.createdAt.toISOString(), version: row.version };
 }
 export function getObservationHistory(actor: AcademicActor, studentId: string, query: ObservationQuery) {
+  studentId = uuid(studentId);
   const { schoolYear, term, behavior, area, observedFrom, observedTo } = query;
   const filters = createHash('sha256').update(JSON.stringify([schoolYear ?? null, term ?? null, behavior ?? null, area ?? null,
     observedFrom ?? null, observedTo ?? null])).digest('hex');
@@ -140,6 +149,7 @@ export function getObservationHistory(actor: AcademicActor, studentId: string, q
   });
 }
 export function getObservationRevisions(actor: AcademicActor, studentId: string, observationId: string, query: ObservationQuery) {
+  studentId = uuid(studentId); observationId = uuid(observationId);
   const page = query.cursor ? decodeCursor(query.cursor, revisionCursor) : undefined;
   if (page && (page.studentId !== studentId || page.observationId !== observationId || page.after > page.ceiling))
     throw observationInvalid([{ field: 'cursor', reason: 'invalid_format' }]);

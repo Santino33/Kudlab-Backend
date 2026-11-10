@@ -14,7 +14,7 @@ it('CA-01/02/06: catálogos cerrados, año manual y área nula normalizada', () 
   for (const schoolYear of [-2147483648, 0, 2147483647]) expect(() => parseObservation({ ...v, schoolYear })).not.toThrow();
   for (const patch of [{ frequency: 0 }, { frequency: 'NO_OPPORTUNITY' }, { area: '' }, { term: 0 }, { term: 5 },
     { schoolYear: 1.5 }, { schoolYear: 2147483648 }, { behavior: 'OTHER' }, { requestId: 'bad' }, { groupId: null },
-    { observedOn: '2025-02-29' }, { observedOn: '2024-02-30' }, { authorId: randomUUID() }, { recordedAt: '2026-01-01' }])
+    { observedOn: '2025-02-29' }, { observedOn: '2024-02-30' }, { observedOn: '0000-01-01' }, { authorId: randomUUID() }, { recordedAt: '2026-01-01' }])
     expect(() => parseObservation({ ...v, ...patch })).toThrow(ObservationError);
 });
 it('CA-06: fecha calendario y frontera del día Bogotá, no UTC', () => {
@@ -44,10 +44,13 @@ it('CA-01/04/07: obligatorios, extras sin eco, versión y huella estable por ope
     expect(observationFingerprint(student, a)).not.toBe(observationFingerprint(student, changed));
   expect(observationFingerprint(student, a)).not.toBe(observationFingerprint(randomUUID(), a));
   expect(observationFingerprint(student, a)).not.toBe(observationFingerprint(student, parseObservation({ ...v, expectedVersion: 1 }, true), randomUUID()));
+  const groupId = randomUUID();
+  expect(parseObservation({ ...v, requestId: v.requestId.toUpperCase(), groupId: groupId.toUpperCase() }))
+    .toMatchObject({ requestId: v.requestId, groupId });
 });
 it('CA-03/06: consultas cerradas, límites, rango inclusivo y área no especificada distinta de quitar filtro', () => {
   expect(parseObservationQuery(new URLSearchParams('schoolYear=2025&term=4&area=UNSPECIFIED&limit=100'))).toEqual({ schoolYear: 2025, term: 4, area: 'UNSPECIFIED', limit: 100 });
-  for (const query of ['term=5', 'limit=0', 'limit=101', 'limit=1.5', 'area=null', 'other=x', 'limit=1&limit=2', 'observedFrom=2025-02-29', 'observedFrom=2026-01-02&observedTo=2026-01-01'])
+  for (const query of ['term=5', 'limit=0', 'limit=101', 'limit=1.5', 'area=null', 'other=x', 'limit=1&limit=2', 'observedFrom=2025-02-29', 'observedFrom=0000-01-01', 'observedFrom=2026-01-02&observedTo=2026-01-01'])
     expect(() => parseObservationQuery(new URLSearchParams(query))).toThrow(ObservationError);
   expect(() => parseObservationQuery(new URLSearchParams('term=1'), true)).toThrow(ObservationError);
 });

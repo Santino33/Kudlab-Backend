@@ -7,6 +7,18 @@ import { reset } from '../helpers.js';
 import { assertObservationTestDatabase, observationFixture } from '../observations-fixture.js';
 
 beforeEach(async () => { assertObservationTestDatabase(); await reset(); });
+it('T-01/03: el arnés rechaza otro destino o parámetros que redirijan la conexión', () => {
+  const previous = process.env.DATABASE_URL;
+  try {
+    for (const value of ['postgres://localhost:5432/kudlab_observaciones_test',
+      'postgres://feat-observaciones-tests-20261109:5432/kudlab_entrega',
+      'postgres://feat-observaciones-tests-20261109:5432/kudlab_observaciones_test?host=other',
+      'postgres://feat-observaciones-tests-20261109:5433/kudlab_observaciones_test']) {
+      process.env.DATABASE_URL = value;
+      expect(() => assertObservationTestDatabase()).toThrow('ISOLATED_OBSERVATION_TEST_DATABASE_REQUIRED');
+    }
+  } finally { process.env.DATABASE_URL = previous; }
+});
 it('T-03/CA-01/04/07: esquema aditivo, originales íntegros, índices, FK y catálogos sin unicidad por valores', async () => {
   const f = await observationFixture(), at = new Date();
   const [identity] = await db.insert(observations).values({ studentId: f.student.id, authorId: f.a.account.id, createdAt: at }).returning();

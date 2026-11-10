@@ -6,8 +6,10 @@ import { academicFixture } from './helpers.js';
 
 export function assertObservationTestDatabase() {
   const url = new URL(process.env.DATABASE_URL!);
-  if (process.env.NODE_ENV !== 'test' || url.hostname !== 'feat-observaciones-tests-20261109' ||
-    url.pathname !== '/kudlab_observaciones_test' || url.port !== '5432') throw new Error('ISOLATED_OBSERVATION_TEST_DATABASE_REQUIRED');
+  if (process.env.NODE_ENV !== 'test' || !['postgres:', 'postgresql:'].includes(url.protocol) || url.search || url.hash ||
+    url.hostname !== 'feat-observaciones-tests-20261109' ||
+    !['/kudlab_observaciones_test', '/kudlab_j02_observaciones_test'].includes(url.pathname) || url.port !== '5432')
+    throw new Error('ISOLATED_OBSERVATION_TEST_DATABASE_REQUIRED');
 }
 export async function observationFixture() {
   assertObservationTestDatabase();

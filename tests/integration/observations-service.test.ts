@@ -1,7 +1,8 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, beforeEach, expect, it, vi } from 'vitest';
-import { desc, eq } from 'drizzle-orm';
-import { db } from '../../src/db/client.js';
+import { desc, eq, sql } from 'drizzle-orm';
+import { db, pool } from '../../src/db/client.js';
+import pg from 'pg';
 import { session } from '../../src/db/schema/auth.js';
 import { userAccounts } from '../../src/db/schema/accounts.js';
 import { groups, students } from '../../src/db/schema/academic.js';
@@ -26,6 +27,8 @@ it('T-05/CA-01/02/07: alta atómica con consentimiento real, misma intención co
   const results = await Promise.all([createObservation(a, f.student.id, input), createObservation(a, f.student.id, input)]);
   expect(results.map(r => r.repeated).sort()).toEqual([false, true]);
   expect(results[0]!.receipt).toEqual(results[1]!.receipt);
+  expect(await createObservation(a, f.student.id.toUpperCase(), { ...input, requestId: input.requestId.toUpperCase() }))
+    .toEqual({ receipt: results[0]!.receipt, repeated: true });
   expect(await db.select().from(observations)).toHaveLength(1);
   expect(await db.select().from(revisions)).toHaveLength(1);
   await expect(createObservation(a, f.student.id, { ...input, frequency: 'ALWAYS' })).rejects.toMatchObject({ fields: [{ reason: 'REQUEST_MISMATCH' }] });
@@ -55,6 +58,7 @@ it('T-05/CA-08: NONE/unavailable/incoherente fallan cerrado, sin identidad ni re
   await f.activate();
   const read = vi.spyOn(consent, 'readConsentDecision');
   for (const [value, status] of [[{ kind: 'available', state: 'NONE', version: 0 }, 409], [{ kind: 'unavailable' }, 503],
+    [{ kind: 'available', state: 'NONE', version: 1 }, 503], [{ kind: 'available', state: 'REVOKED', version: 0 }, 503],
     [{ kind: 'available', state: 'CURRENT', version: 1, validUntil: null }, 503],
     [{ kind: 'available', state: 'CURRENT', version: 0, authorizationReference: 'bad', validUntil: null }, 503]] as const) {
     read.mockResolvedValueOnce(value as never);
@@ -137,4 +141,78 @@ it('T-05/06/07/CA-08: ámbito actual, autor original y cuenta/rol/sesión verifi
   expect(await getObservationReceipt(b, f.student.id, input.requestId)).toEqual({ receipt: null });
   await expect(correctObservation(b, f.student.id, id, { ...f.input(), expectedVersion: 1 })).rejects.toMatchObject({ fields: [{ reason: 'AUTHOR_REQUIRED' }] });
   expect((await createObservation(b, f.student.id, f.input())).receipt.revision.actorId).toBe(b.accountId);
+});
+async function waitForBlockedBy(pid: number) {
+  // Database barrier, no timing sleeps and no HTTP/client-visible test controls.
+  for (let attempt = 0; attempt < 1000; attempt++) {
+    const result = await pool.query('select pid from pg_stat_activity where $1 = any(pg_blocking_pids(pid))', [pid]);
+    if (result.rowCount) return;
+  }
+  throw new Error('Expected PostgreSQL lock wait not observed');
+}
+it('T-07/CA-04: espera real del lock cruza 24 h; hora posterior al lock y rollback íntegro', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id); await f.activate();
+  const now = Date.now(), original = now - 86400000;
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(original);
+  const first = await createObservation(a, f.student.id, f.input());
+  const locker = new pg.Client({ connectionString: process.env.DATABASE_URL }); await locker.connect();
+  try {
+    await locker.query('begin');
+    const pid = (await locker.query('select pg_backend_pid() as pid')).rows[0].pid;
+    await locker.query('select id from teacher_observations where id=$1 for update', [first.receipt.observationId]);
+    vi.setSystemTime(original + 86399000);
+    const pending = correctObservation(a, f.student.id, first.receipt.observationId, { ...f.input(), expectedVersion: 1 })
+      .then(value => value, error => error);
+    await waitForBlockedBy(pid);
+    vi.setSystemTime(original + 86400000);
+    await locker.query('commit');
+    expect(await pending).toMatchObject({ status: 409, fields: [{ reason: 'CORRECTION_CLOSED' }] });
+    expect(await db.select().from(revisions)).toHaveLength(1);
+    expect((await db.select().from(observations))[0]!.version).toBe(1);
+  } finally { await locker.query('rollback'); await locker.end(); }
+});
+it('T-05/CA-08: inactivación confirmada mientras se espera estudiante impide escribir', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id); await f.activate();
+  const locker = new pg.Client({ connectionString: process.env.DATABASE_URL }); await locker.connect();
+  try {
+    await locker.query('begin');
+    const pid = (await locker.query('select pg_backend_pid() as pid')).rows[0].pid;
+    await locker.query('update students set is_active=false where id=$1', [f.student.id]);
+    const pending = createObservation(a, f.student.id, f.input()).then(value => value, error => error);
+    await waitForBlockedBy(pid); await locker.query('commit');
+    expect(await pending).toMatchObject({ status: 409, fields: [{ reason: 'STUDENT_INACTIVE' }] });
+    expect(await db.select().from(observations)).toHaveLength(0);
+  } finally { await locker.query('rollback'); await locker.end(); }
+});
+it('T-05/CA-07: fallo SQL de revisión revierte también la identidad, sin recibo falso', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id); await f.activate();
+  await db.execute(sql`create function observation_test_fail() returns trigger language plpgsql as $$ begin raise exception 'isolated test'; end $$`);
+  await db.execute(sql`create trigger observation_test_fail before insert on teacher_observation_revisions for each row execute function observation_test_fail()`);
+  const input = f.input();
+  try {
+    await expect(createObservation(a, f.student.id, input)).rejects.toThrow();
+    expect(await db.select().from(observations)).toHaveLength(0);
+    expect(await getObservationReceipt(a, f.student.id, input.requestId)).toEqual({ receipt: null });
+  } finally {
+    await db.execute(sql`drop trigger observation_test_fail on teacher_observation_revisions`);
+    await db.execute(sql`drop function observation_test_fail()`);
+  }
+  expect((await createObservation(a, f.student.id, input)).repeated).toBe(false);
+});
+it('T-05/CA-08: sesión vencida durante espera revierte identidad/revisión en revalidación final', async () => {
+  const f = await observationFixture(), a = await actor(f.a.account.id); await f.activate();
+  const now = Date.now();
+  await db.update(session).set({ expiresAt: new Date(now + 1000) }).where(eq(session.id, a.sessionId));
+  vi.useFakeTimers({ toFake: ['Date'] }); vi.setSystemTime(now);
+  const locker = new pg.Client({ connectionString: process.env.DATABASE_URL }); await locker.connect();
+  try {
+    await locker.query('begin');
+    const pid = (await locker.query('select pg_backend_pid() as pid')).rows[0].pid;
+    await locker.query('select id from students where id=$1 for update', [f.student.id]);
+    const pending = createObservation(a, f.student.id, f.input()).then(value => value, error => error);
+    await waitForBlockedBy(pid); vi.setSystemTime(now + 2000); await locker.query('commit');
+    expect(await pending).toMatchObject({ status: 401 });
+    expect(await db.select().from(observations)).toHaveLength(0);
+    expect(await db.select().from(revisions)).toHaveLength(0);
+  } finally { await locker.query('rollback'); await locker.end(); }
 });
