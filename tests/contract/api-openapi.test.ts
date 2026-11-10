@@ -1,7 +1,7 @@
 import { beforeEach, expect, it } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { execFileSync } from 'node:child_process';
-import { app } from '../../src/app.js';
+import { app, createApp } from '../../src/app.js';
 import { capturedMail } from '../../src/modules/usuarios/invitations/invitations.mailer.js';
 import { db } from '../../src/db/client.js';
 import { groups } from '../../src/db/schema/academic.js';
@@ -81,6 +81,23 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(history, 'GET', await request(`${students}/${student.id}/indicator-history?limit=0`, 'GET', undefined, teacher), 400);
   await check(history, 'GET', await request(`${students}/bad/indicator-history`, 'GET', undefined, teacher), 404);
   await check(history, 'GET', await request(`${students}/${student.id}/indicator-history`, 'GET', undefined, admin), 403);
+  // Prepare consent through its producer; only the evidence boundary is doubled in this isolated test.
+  const consentApp = createApp({}, { storage: { putImmutable: async () => {}, readVerified: async () => Buffer.from('fixture') },
+    validate: async () => ({ kind: 'valid', mediaType: 'image/png' }) });
+  const consentForm = new FormData();
+  consentForm.append('file', new File(['fixture'], 'ficticio.png', { type: 'image/png' }));
+  consentForm.append('metadata', JSON.stringify({ requestId: randomUUID(), expectedVersion: 0, signedOn: '2026-01-01', receivedOn: '2026-01-02' }));
+  expect((await consentApp.request(`${students}/${student.id}/consents`, { method: 'POST',
+    headers: { ...teacher, origin: process.env.SPA_ORIGIN! }, body: consentForm })).status).toBe(201);
+  const observations = `${students}/{id}/observations`, concreteObservations = `${students}/${student.id}/observations`;
+  const observationBody = { requestId: randomUUID(), behavior: 'ATTENTION', frequency: 'SOMETIMES', observedOn: '2026-01-01', schoolYear: 2025, term: 1 };
+  const observation = await check(observations, 'POST', await request(concreteObservations, 'POST', observationBody, teacher), 201);
+  await check(observations, 'GET', await request(concreteObservations, 'GET', undefined, teacher), 200);
+  const revisions = `${observations}/{observationId}/revisions`, concreteRevisions = `${concreteObservations}/${observation.receipt.observationId}/revisions`;
+  await check(revisions, 'POST', await request(concreteRevisions, 'POST', { ...observationBody, requestId: randomUUID(), expectedVersion: 1, frequency: 'ALWAYS' }, teacher), 201);
+  await check(revisions, 'GET', await request(concreteRevisions, 'GET', undefined, teacher), 200);
+  await check(`${students}/{id}/observation-requests/{requestId}`, 'GET',
+    await request(`${students}/${student.id}/observation-requests/${observationBody.requestId}`, 'GET', undefined, teacher), 200);
   await check(`${students}/{id}`, 'PATCH', await request(`${students}/${student.id}`, 'PATCH', { firstName: 'Ejemplo' }, teacher), 200);
   await check(`${students}/{id}/deactivate`, 'POST', await request(`${students}/${student.id}/deactivate`, 'POST', undefined, teacher), 200);
   const roles = '/api/v1/admin-role-requests';
