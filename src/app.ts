@@ -18,6 +18,7 @@ import { createConsentsRoutes } from './modules/academico/consents/consents.rout
 import { createIndicatorReadRoutes } from './modules/evolucion/read/routes.js';
 import { createObservationsRoutes } from './modules/seguimiento/observations/observations.routes.js';
 import { createNotesRoutes } from './modules/academico/notes/notes.routes.js';
+import { createAnnotationsRoutes } from './modules/seguimiento/annotations/annotations.routes.js';
 import type { ConsentDependencies } from './modules/academico/consents/consents.service.js';
 import { requireTeacher } from './modules/academico/shared/academic-auth.js';
 import { createDocumentationRoutes } from './docs/documentation.routes.js';
@@ -121,6 +122,7 @@ app.route('/api/v1/students', createConsentsRoutes(consents));
 app.route('/', createIndicatorReadRoutes());
 app.route('/', createObservationsRoutes());
 app.route('/', createNotesRoutes());
+app.route('/api/v1/student-annotations', createAnnotationsRoutes());
 app.route('/api/v1/students', createStudentsRoutes(game));
 app.route('/api/v1/tasks', createCatalogRoutes(game));
 app.route('/api/v1/groups', groupsRoutes);
