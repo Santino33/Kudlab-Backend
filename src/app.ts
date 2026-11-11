@@ -17,6 +17,7 @@ import { createStudentsRoutes } from './modules/academico/students/students.rout
 import { createConsentsRoutes } from './modules/academico/consents/consents.routes.js';
 import { createIndicatorReadRoutes } from './modules/evolucion/read/routes.js';
 import { createObservationsRoutes } from './modules/seguimiento/observations/observations.routes.js';
+import { createNotesRoutes } from './modules/academico/notes/notes.routes.js';
 import type { ConsentDependencies } from './modules/academico/consents/consents.service.js';
 import { requireTeacher } from './modules/academico/shared/academic-auth.js';
 import { createDocumentationRoutes } from './docs/documentation.routes.js';
@@ -119,6 +120,7 @@ app.route('/api/v1/students', createConsentsRoutes(consents));
 // Indicadores: después de ambas guardias requireTeacher y ANTES de createStudentsRoutes, cuyo use('*') rechaza cualquier query.
 app.route('/', createIndicatorReadRoutes());
 app.route('/', createObservationsRoutes());
+app.route('/', createNotesRoutes());
 app.route('/api/v1/students', createStudentsRoutes(game));
 app.route('/api/v1/tasks', createCatalogRoutes(game));
 app.route('/api/v1/groups', groupsRoutes);
