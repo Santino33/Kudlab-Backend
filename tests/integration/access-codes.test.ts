@@ -5,6 +5,7 @@ import { db } from '../../src/db/client.js';
 import { gameSessions, runtimeCapabilities } from '../../src/db/schema/game.js';
 import { accessCodes, accessLimits } from '../../src/db/schema/access.js';
 import { groups, students } from '../../src/db/schema/academic.js';
+import { tasks } from '../../src/db/schema/tasks.js';
 import { reset } from '../helpers.js';
 import { gameFixture, testGameApp, authorizations } from '../game-fixture.js';
 import { accessLimit, cleanAccessLimits } from '../../src/modules/tareas/runtime/access-limit.js';
@@ -51,8 +52,9 @@ describe('J03 access codes with PostgreSQL and isolated synthetic participation'
     const invalid = await request(`/task-assignments/${f.assignment.id}/access-codes`, 'POST', { requestId: randomUUID(), recipientIds: [f.metadata.recipientId, randomUUID()] }, f.a.teacher); expect(invalid.status).toBe(404); expect(await db.select().from(accessCodes)).toHaveLength(1);
     for (const actor of [f.b.teacher, f.a.admin]) expect((await request(`/task-access-codes/${f.metadata.id}/reveal`, 'POST', {}, actor)).status).toBe(actor === f.a.admin ? 403 : 404);
   });
-  it('claims anonymously, reconciles lost replies, consumes once and uses unchanged evidence/processor/receipt', async () => {
+  it('claims prior assignment while disabled, reconciles lost replies, consumes once and preserves evidence/processor/receipt', async () => {
     const f = await fixture(), input = claimInput(f.code);
+    await db.update(tasks).set({ isEnabled: false }).where(eq(tasks.id, 'TG-01'));
     const c = await ok('/game-runtime/access/claim', input);
     expect(await ok('/game-runtime/access/claim', input)).toEqual(expect.objectContaining({ sessionId: c.sessionId }));
     expect(c.attemptNumber).toBeNull(); expect(JSON.stringify(c)).not.toContain(f.student.id);
