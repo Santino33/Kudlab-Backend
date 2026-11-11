@@ -8051,14 +8051,14 @@ components:
         expectedVersion: { type: integer, minimum: 1, description: Versión de la nota que el docente vio. }
     AcademicNoteError:
       type: object
-      required: [ code, message, fields ]
+      required: [ code, message ]
       properties:
         code: { type: string, enum: [ INVALID_INPUT, CONFLICT ] }
         message: { type: string, description: Mensaje fijo sin información de otros ámbitos. }
         fields:
           type: array
           description: >-
-            Combinaciones cerradas. 400 INVALID_INPUT: subject, term o score con required, invalid_format,
+            Ausente cuando el 400 es por una consulta o un cuerpo que no es un objeto JSON estricto. Combinaciones cerradas. 400 INVALID_INPUT: subject, term o score con required, invalid_format,
             out_of_range o too_many_decimals; version con required o invalid_format. 409 CONFLICT:
             note:already_exists, student:inactive o version:stale.
           items:
