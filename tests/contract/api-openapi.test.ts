@@ -30,7 +30,10 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check('/api/auth/sign-in/email', 'POST', signIn, 200);
   const admin = await login();
   await check('/api/v1/tasks', 'GET', await request('/api/v1/tasks', 'GET', undefined, admin), 200);
-  await check('/api/v1/tasks/{taskId}', 'GET', await request('/api/v1/tasks/TG-01', 'GET', undefined, admin), 200);
+  const task = await check('/api/v1/tasks/{taskId}', 'GET', await request('/api/v1/tasks/TG-01', 'GET', undefined, admin), 200);
+  const availability = await check('/api/v1/tasks/{taskId}/availability', 'PATCH',
+    await request('/api/v1/tasks/TG-01/availability', 'PATCH', { isEnabled: !task.isEnabled, expectedRevision: task.revision }, admin), 200);
+  expect(availability).toMatchObject({ isEnabled: !task.isEnabled, revision: task.revision + 1 });
   for (const path of ['/api/auth/get-session', '/api/auth/jwks', '/api/auth/token'])
     await check(path, 'GET', await request(path, 'GET', undefined, admin), 200);
   const base = '/api/v1/accounts';
