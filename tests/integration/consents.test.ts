@@ -8,7 +8,7 @@ import { consentEvents, consentOperations, consentRecords } from '../../src/db/s
 import { assignments, recipients, gameSessions, runtimeCapabilities } from '../../src/db/schema/game.js';
 import { publishTg01 } from '../../src/modules/tareas/catalog/publish.js';
 import { academicFixture, reset } from '../helpers.js';
-import type { ConsentDependencies } from '../../src/modules/academico/consents/consents.service.js';
+import { consentDependencies, type ConsentDependencies } from '../../src/modules/academico/consents/consents.service.js';
 
 beforeEach(async () => {
   if (!new URL(process.env.DATABASE_URL!).pathname.endsWith('_test')) throw new Error('Exclusive test database required');
@@ -41,6 +41,38 @@ async function fixture() {
   });
   return { ...scope, student: student!, app, path, headers, storage, validate, read, write, revoke };
 }
+it('CA-01/02/03 correctivo: validación normal sin worker, rechazo previo a reserva y activación solo tras guardado', async () => {
+  const f = await fixture();
+  f.validate.mockImplementation(consentDependencies().validate);
+  const requestId = randomUUID();
+  const send = (content: string, name = 'ficticio.pdf', auth = f.headers) => {
+    const form = new FormData();
+    form.append('file', new File([content], name, { type: 'application/pdf' }));
+    form.append('metadata', JSON.stringify({ requestId, expectedVersion: 0, signedOn: '2026-01-01', receivedOn: '2026-01-02' }));
+    return f.app.request(f.path, { method: 'POST', headers: auth, body: form });
+  };
+  for (const [content, name] of [['', 'empty.pdf'], ['not a PDF', 'fake.pdf'], ['%PDF-1.7', 'wrong.png']]) {
+    expect((await send(content!, name!)).status).toBe(400);
+  }
+  expect(f.storage.putImmutable).not.toHaveBeenCalled();
+  expect(await db.select().from(consentOperations)).toHaveLength(0);
+  expect((await (await f.read()).json()).student.isActive).toBe(false);
+  f.storage.putImmutable.mockRejectedValueOnce(new Error('controlled storage failure'));
+  expect((await send('%PDF-1.7')).status).toBe(503);
+  expect((await (await f.read()).json()).student.isActive).toBe(false);
+  expect(await db.select().from(consentRecords)).toHaveLength(0);
+  const response = await send('%PDF-1.7');
+  expect(response.status).toBe(201);
+  const result = await response.json();
+  expect(result.snapshot.student.isActive).toBe(true);
+  expect((await send('%PDF-1.7')).status).toBe(200);
+  expect(await db.select().from(consentEvents)).toHaveLength(1);
+  const document = await f.read(`/${result.acknowledgement.recordId}/document`);
+  expect(document.headers.get('content-type')).toBe('application/pdf');
+  expect(document.headers.get('x-content-type-options')).toBe('nosniff');
+  expect(document.headers.get('content-disposition')).toContain('attachment;');
+  expect(await document.text()).toBe('%PDF-1.7');
+});
 it('registra/activa atómicamente, reproduce sin reactivar y rechaza payload/versión distintos', async () => {
   const f = await fixture(), id = randomUUID();
   expect((await (await f.read()).json()).consent).toEqual({ state: 'NONE', version: 0, currentRecord: null });
