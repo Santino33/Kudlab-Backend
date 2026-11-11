@@ -21,8 +21,7 @@ export type ConsentDependencies = {
   validate: (file: File, signal?: AbortSignal) => ReturnType<typeof validateConsentFile>;
 };
 export function consentDependencies(): ConsentDependencies {
-  return { storage: createConsentStorage(), validate: (file, signal) =>
-    validateConsentFile(file, process.env.CONSENT_VALIDATOR_SOCKET ?? '/socket/validator.sock', signal) };
+  return { storage: createConsentStorage(), validate: validateConsentFile };
 }
 function uuid(value: string) { if (!z.uuid().safeParse(value).success) throw notFound(); return value; }
 async function ownStudent(tx: AcademicTransaction, actor: AcademicActor, id: string, write = false) {

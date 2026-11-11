@@ -75,7 +75,7 @@ export function parseConsentMetadata(input: unknown, now: Date) {
 }
 
 // Transport must bound the raw body before parsing FormData; this only checks the parsed parts.
-// MIME/name are untrusted: the structural validator must still validate the original file bytes.
+// MIME/name are untrusted: admission must still check the original file signature and extension.
 export function parseConsentForm(form: FormData, now: Date) {
   if ([...form.keys()].some(key => key !== 'file' && key !== 'metadata')) throw invalid('metadata');
   const files = form.getAll('file'), metadata = form.getAll('metadata');
