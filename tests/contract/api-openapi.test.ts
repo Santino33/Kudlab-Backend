@@ -98,6 +98,21 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(revisions, 'GET', await request(concreteRevisions, 'GET', undefined, teacher), 200);
   await check(`${students}/{id}/observation-requests/{requestId}`, 'GET',
     await request(`${students}/${student.id}/observation-requests/${observationBody.requestId}`, 'GET', undefined, teacher), 200);
+  // Notas académicas: el estudiante ya está activo por el flujo real de consentimiento anterior.
+  const noteList = `${students}/{id}/academic-notes`, concreteNotes = `${students}/${student.id}/academic-notes`;
+  const note = await check(noteList, 'POST', await request(concreteNotes, 'POST', { subject: 'LENGUAJE', term: 1, score: '4.5' }, teacher), 201);
+  await check(noteList, 'POST', await request(concreteNotes, 'POST', { subject: 'LENGUAJE', term: 1, score: '5.1' }, teacher), 400);
+  await check(noteList, 'POST', await request(concreteNotes, 'POST', { subject: 'LENGUAJE', term: 1, score: '4.5' }, teacher), 409);
+  await check(noteList, 'POST', await request(concreteNotes, 'POST', { subject: 'LENGUAJE', term: 2, score: '4.5' }, admin), 403);
+  await check(noteList, 'POST', await request(`${students}/bad/academic-notes`, 'POST', { subject: 'LENGUAJE', term: 2, score: '4.5' }, teacher), 404);
+  await check(noteList, 'GET', await request(concreteNotes, 'GET', undefined, teacher), 200);
+  await check(noteList, 'GET', await request(`${concreteNotes}?x=1`, 'GET', undefined, teacher), 400);
+  await check(noteList, 'GET', await request(concreteNotes, 'GET'), 401);
+  const notePath = `${noteList}/{noteId}`, concreteNote = `${concreteNotes}/${note.id}`;
+  await check(notePath, 'PATCH', await request(concreteNote, 'PATCH', { score: '3.0', expectedVersion: 1 }, teacher), 200);
+  await check(notePath, 'PATCH', await request(concreteNote, 'PATCH', { score: '2.0' }, teacher), 400);
+  await check(notePath, 'PATCH', await request(concreteNote, 'PATCH', { score: '2.0', expectedVersion: 1 }, teacher), 409);
+  await check(notePath, 'PATCH', await request(`${concreteNotes}/${randomUUID()}`, 'PATCH', { score: '2.0', expectedVersion: 1 }, teacher), 404);
   await check(`${students}/{id}`, 'PATCH', await request(`${students}/${student.id}`, 'PATCH', { firstName: 'Ejemplo' }, teacher), 200);
   await check(`${students}/{id}/deactivate`, 'POST', await request(`${students}/${student.id}/deactivate`, 'POST', undefined, teacher), 200);
   const roles = '/api/v1/admin-role-requests';

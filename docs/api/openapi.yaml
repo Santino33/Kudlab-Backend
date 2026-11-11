@@ -4392,6 +4392,87 @@ paths:
         '403': { $ref: '#/components/responses/Forbidden' }
         '404': { $ref: '#/components/responses/NotFound' }
         '503': { $ref: '#/components/responses/Unavailable' }
+  /api/v1/students/{id}/academic-notes:
+    parameters:
+      - $ref: '#/components/parameters/StudentId'
+    get:
+      operationId: listAcademicNotes
+      summary: Consultar notas académicas del año del curso actual
+      description: >-
+        TEACHER activo responsable del curso actual del estudiante; ADMIN recibe 403 y un estudiante ajeno
+        o ausente 404 neutro. Devuelve solo las notas del año escolar del curso actual con sus revisiones;
+        las de otros años se conservan sin mostrarse. Una combinación sin nota no aparece (no equivale a 0).
+        Sin consulta (cualquier parámetro causa 400), sin promedios ni etiquetas de desempeño.
+        Un estudiante inactivo se puede consultar.
+      tags: [ Estudiantes ]
+      security: *session
+      responses:
+        '200':
+          description: Notas del año del curso actual; lista vacía permitida.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AcademicNoteList' } } }
+        '400': { $ref: '#/components/responses/NoteBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
+    post:
+      operationId: createAcademicNote
+      summary: Registrar una nota académica
+      description: >-
+        TEACHER activo responsable del curso actual y estudiante activo. Una nota por estudiante, área,
+        año del curso actual y periodo; el año lo fija el servidor. Escala 1.0 a 5.0 con un decimal y punto
+        como separador, enviada como cadena (se rechazan 0.9, 5.1, 4.25 y «4,5»); el valor se normaliza a un
+        decimal. Autor y fecha son del servidor. Una combinación existente produce 409 note:already_exists;
+        estudiante inactivo, 409 student:inactive. No hay vía de borrado ni anulación. Sin consulta; cuerpo estricto.
+      tags: [ Estudiantes ]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcademicNoteCreateInput' }
+            example: { subject: LENGUAJE, term: 1, score: '4.5' }
+      responses:
+        '201':
+          description: Nota creada con su primera revisión.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AcademicNote' } } }
+        '400': { $ref: '#/components/responses/NoteBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '409': { $ref: '#/components/responses/NoteConflict' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
+  /api/v1/students/{id}/academic-notes/{noteId}:
+    parameters:
+      - $ref: '#/components/parameters/StudentId'
+      - { name: noteId, in: path, required: true, description: UUID de una nota del estudiante y del año del curso actual; otra cosa produce 404 neutro., schema: { type: string, format: uuid } }
+    patch:
+      operationId: updateAcademicNote
+      summary: Actualizar explícitamente el valor de una nota
+      description: >-
+        Misma autorización y escala que el alta, sobre una nota del estudiante y del año del curso actual.
+        Exige expectedVersion; una versión desactualizada produce 409 version:stale y no sobrescribe.
+        Un valor igual al vigente responde 200 sin nueva revisión (reintento idempotente). Un valor distinto
+        incrementa la versión y añade una revisión con el valor, autor y fecha; las anteriores se conservan.
+        Estudiante inactivo, 409 student:inactive. No cambia área ni periodo. Sin consulta; cuerpo estricto.
+      tags: [ Estudiantes ]
+      security: *session
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: { $ref: '#/components/schemas/AcademicNoteUpdateInput' }
+            example: { score: '4.0', expectedVersion: 1 }
+      responses:
+        '200':
+          description: Nota vigente tras la actualización o el reintento idempotente.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AcademicNote' } } }
+        '400': { $ref: '#/components/responses/NoteBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '409': { $ref: '#/components/responses/NoteConflict' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
 components:
   securitySchemes:
     sessionCookie:
@@ -7903,7 +7984,103 @@ components:
         - items
         - nextCursor
       additionalProperties: false
+    AcademicNoteScore:
+      type: string
+      pattern: '^[1-5]\.[0-9]$'
+      description: Valor de 1.0 a 5.0 con un decimal y punto.
+      examples: [ '4.5' ]
+    AcademicNoteScoreInput:
+      type: string
+      pattern: '^(?:[1-4](?:\.[0-9])?|5(?:\.0)?)$'
+      description: Valor de 1 a 5 con punto y a lo sumo un decimal; coma, texto y más decimales se rechazan.
+      examples: [ '4.5' ]
+    AcademicNoteSubject:
+      type: string
+      enum: [ LENGUAJE, MATEMATICAS ]
+      description: Área; LENGUAJE se muestra como «Lenguaje/Lectura» y MATEMATICAS como «Matemáticas».
+    AcademicNoteRevision:
+      type: object
+      additionalProperties: false
+      required: [ version, score, authorName, recordedAt ]
+      properties:
+        version: { type: integer, minimum: 1, examples: [ 1 ] }
+        score: { $ref: '#/components/schemas/AcademicNoteScore' }
+        authorName: { type: string, description: Nombre del docente autor de esa revisión., examples: [ Docente Ficticio ] }
+        recordedAt: { type: string, format: date-time }
+    AcademicNote:
+      type: object
+      additionalProperties: false
+      required: [ id, subject, term, score, version, authorName, updatedAt, revisions ]
+      properties:
+        id: { type: string, format: uuid }
+        subject: { $ref: '#/components/schemas/AcademicNoteSubject' }
+        term: { type: integer, minimum: 1, maximum: 4, description: Periodo del año escolar., examples: [ 1 ] }
+        score: { $ref: '#/components/schemas/AcademicNoteScore' }
+        version: { type: integer, minimum: 1, description: Versión vigente; se envía como expectedVersion al actualizar., examples: [ 1 ] }
+        authorName: { type: string, description: Último autor., examples: [ Docente Ficticio ] }
+        updatedAt: { type: string, format: date-time }
+        revisions:
+          type: array
+          minItems: 1
+          description: Cambios en orden ascendente de versión; la última coincide con la nota vigente.
+          items: { $ref: '#/components/schemas/AcademicNoteRevision' }
+    AcademicNoteList:
+      type: object
+      additionalProperties: false
+      required: [ schoolYear, items ]
+      properties:
+        schoolYear: { type: integer }
+        items:
+          type: array
+          description: Notas del año del curso actual; las combinaciones sin nota no aparecen.
+          items: { $ref: '#/components/schemas/AcademicNote' }
+    AcademicNoteCreateInput:
+      type: object
+      additionalProperties: false
+      required: [ subject, term, score ]
+      properties:
+        subject: { $ref: '#/components/schemas/AcademicNoteSubject' }
+        term: { type: integer, minimum: 1, maximum: 4 }
+        score: { $ref: '#/components/schemas/AcademicNoteScoreInput' }
+    AcademicNoteUpdateInput:
+      type: object
+      additionalProperties: false
+      required: [ score, expectedVersion ]
+      properties:
+        score: { $ref: '#/components/schemas/AcademicNoteScoreInput' }
+        expectedVersion: { type: integer, minimum: 1, description: Versión de la nota que el docente vio. }
+    AcademicNoteError:
+      type: object
+      required: [ code, message ]
+      properties:
+        code: { type: string, enum: [ INVALID_INPUT, CONFLICT ] }
+        message: { type: string, description: Mensaje fijo sin información de otros ámbitos. }
+        fields:
+          type: array
+          description: >-
+            Ausente cuando el 400 es por una consulta o un cuerpo que no es un objeto JSON estricto. Combinaciones cerradas. 400 INVALID_INPUT: subject, term o score con required, invalid_format,
+            out_of_range o too_many_decimals; version con required o invalid_format. 409 CONFLICT:
+            note:already_exists, student:inactive o version:stale.
+          items:
+            type: object
+            additionalProperties: false
+            required: [ field, reason ]
+            properties:
+              field: { type: string, enum: [ subject, term, score, note, student, version ] }
+              reason: { type: string, enum: [ required, invalid_format, out_of_range, too_many_decimals, already_exists, inactive, stale ] }
   responses:
+    NoteBadInput:
+      description: 400 INVALID_INPUT; consulta presente o campos inválidos, con fields cerrados.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AcademicNoteError' }
+          example: { code: INVALID_INPUT, message: Datos inválidos, fields: [ { field: score, reason: out_of_range } ] }
+    NoteConflict:
+      description: 409 CONFLICT por note:already_exists, student:inactive o version:stale.
+      content:
+        application/json:
+          schema: { $ref: '#/components/schemas/AcademicNoteError' }
+          example: { code: CONFLICT, message: Conflicto con el estado actual, fields: [ { field: note, reason: already_exists } ] }
     ObservationWriteResult:
       description: 201 nueva revisión; 200 recibo confirmado de la misma intención, sin nueva escritura.
       content: { application/json: { schema: { $ref: '#/components/schemas/ObservationWriteResult' } } }
