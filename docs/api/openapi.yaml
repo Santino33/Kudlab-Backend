@@ -4473,6 +4473,96 @@ paths:
         '404': { $ref: '#/components/responses/AcademicNotFound' }
         '409': { $ref: '#/components/responses/NoteConflict' }
         '503': { $ref: '#/components/responses/AcademicUnavailable' }
+  /api/v1/student-annotations:
+    get:
+      operationId: listStudentAnnotations
+      summary: Consultar anotaciones cualitativas individuales
+      description: >-
+        TEACHER activo con responsabilidad actual. Incluye historial anterior e inactivo, sin condición
+        directa de consentimiento. Orden createdAt DESC, id DESC; cursor ligado al estudiante, no credencial.
+        Limit 1–100, por defecto 25. Rechaza consultas desconocidas o repetidas. Sin snapshot entre páginas.
+      tags: [ Estudiantes ]
+      security: *session
+      parameters:
+        - { name: studentId, in: query, required: true, schema: { type: string, format: uuid } }
+        - { name: limit, in: query, schema: { type: integer, minimum: 1, maximum: 100, default: 25 } }
+        - { name: cursor, in: query, schema: { type: string, maxLength: 512, pattern: '^[\w-]+$' } }
+      responses:
+        '200':
+          description: Historial autorizado; lista vacía es distinta de fallo.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationsList' } } }
+        '400': { $ref: '#/components/responses/AnnotationBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
+    post:
+      operationId: createStudentAnnotation
+      summary: Registrar contexto docente individual
+      description: >-
+        TEACHER responsable y estudiante activo, sin comprobación directa de CURRENT. Solo studentId/text;
+        autor y fecha de servidor. Texto plano no vacío ni solo blancos, hasta 1000 puntos Unicode;
+        se conserva sin truncar. Sin consulta; límite de cuerpo 16 KiB. No deduplicación por texto ni replay.
+      tags: [ Estudiantes ]
+      security: *session
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationCreate' } } }
+      responses:
+        '201':
+          description: Anotación creada y confirmada.
+          content: { application/json: { schema: { $ref: '#/components/schemas/StudentAnnotation' } } }
+        '400': { $ref: '#/components/responses/AnnotationBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '409': { $ref: '#/components/responses/AnnotationConflict' }
+        '413': { $ref: '#/components/responses/AnnotationBadInput' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
+  /api/v1/student-annotations/{annotationId}:
+    parameters:
+      - { name: annotationId, in: path, required: true, schema: { type: string, format: uuid } }
+    patch:
+      operationId: updateStudentAnnotation
+      summary: Corregir una anotación propia
+      description: >-
+        Solo autor aún responsable y estudiante activo. Sustituye texto vigente, conserva autor/createdAt
+        y fija updatedAt del servidor. Sin versiones anteriores ni auditoría del contenido. Sin consulta.
+      tags: [ Estudiantes ]
+      security: *session
+      requestBody:
+        required: true
+        content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationUpdate' } } }
+      responses:
+        '200':
+          description: Texto actualizado, sin versiones previas.
+          content: { application/json: { schema: { $ref: '#/components/schemas/StudentAnnotation' } } }
+        '400': { $ref: '#/components/responses/AnnotationBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '409': { $ref: '#/components/responses/AnnotationConflict' }
+        '413': { $ref: '#/components/responses/AnnotationBadInput' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
+    delete:
+      operationId: deleteStudentAnnotation
+      summary: Borrar una anotación propia confirmada en la interfaz
+      description: >-
+        Solo autor aún responsable y estudiante activo; sin cuerpo ni consulta. Borrado físico de la fila,
+        sin papelera/recuperación en aplicación ni promesa sobre respaldos. Ausente/ajena fuera de ámbito 404 neutro.
+      tags: [ Estudiantes ]
+      security: *session
+      responses:
+        '200':
+          description: Eliminación confirmada mediante JSON, no 204.
+          content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationDeleted' } } }
+        '400': { $ref: '#/components/responses/AnnotationBadInput' }
+        '401': { $ref: '#/components/responses/AcademicUnauthenticated' }
+        '403': { $ref: '#/components/responses/AcademicForbidden' }
+        '404': { $ref: '#/components/responses/AcademicNotFound' }
+        '409': { $ref: '#/components/responses/AnnotationConflict' }
+        '413': { $ref: '#/components/responses/AnnotationBadInput' }
+        '503': { $ref: '#/components/responses/AcademicUnavailable' }
 components:
   securitySchemes:
     sessionCookie:
@@ -7984,6 +8074,85 @@ components:
         - items
         - nextCursor
       additionalProperties: false
+    AnnotationText:
+      type: string
+      minLength: 1
+      maxLength: 1000
+      pattern: '\S'
+      description: Texto plano no vacío ni solo blancos; puntos de código Unicode, sin NUL/surrogates aislados.
+    StudentAnnotation:
+      type: object
+      additionalProperties: false
+      required: [ id, studentId, text, author, createdAt, updatedAt, canEdit, canDelete ]
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        text: { $ref: '#/components/schemas/AnnotationText' }
+        author:
+          type: object
+          additionalProperties: false
+          required: [ id, name ]
+          properties:
+            id: { type: string, format: uuid, description: Cuenta de negocio docente; no ID de login. }
+            name: { type: string }
+        createdAt: { type: string, format: date-time }
+        updatedAt: { type: [ string, 'null' ], format: date-time }
+        canEdit: { type: boolean }
+        canDelete: { type: boolean }
+    AnnotationsList:
+      type: object
+      additionalProperties: false
+      required: [ studentId, isActive, canCreate, items, nextCursor ]
+      properties:
+        studentId: { type: string, format: uuid }
+        isActive: { type: boolean }
+        canCreate: { type: boolean }
+        items: { type: array, maxItems: 100, items: { $ref: '#/components/schemas/StudentAnnotation' } }
+        nextCursor: { type: [ string, 'null' ], maxLength: 512 }
+    AnnotationCreate:
+      type: object
+      additionalProperties: false
+      required: [ studentId, text ]
+      properties:
+        studentId: { type: string, format: uuid }
+        text: { $ref: '#/components/schemas/AnnotationText' }
+    AnnotationUpdate:
+      type: object
+      additionalProperties: false
+      required: [ text ]
+      properties:
+        text: { $ref: '#/components/schemas/AnnotationText' }
+    AnnotationDeleted:
+      type: object
+      additionalProperties: false
+      required: [ id, studentId, deleted ]
+      properties:
+        id: { type: string, format: uuid }
+        studentId: { type: string, format: uuid }
+        deleted: { const: true }
+    AnnotationError:
+      type: object
+      additionalProperties: false
+      required: [ code, message ]
+      properties:
+        code: { type: string, enum: [ INVALID_INPUT, CONFLICT ] }
+        message: { type: string }
+        fields:
+          type: array
+          items:
+            oneOf:
+              - type: object
+                additionalProperties: false
+                required: [ field, reason ]
+                properties:
+                  field: { const: text }
+                  reason: { enum: [ TEXT_REQUIRED, TEXT_TOO_LONG ] }
+              - type: object
+                additionalProperties: false
+                required: [ field, reason ]
+                properties:
+                  field: { const: operation }
+                  reason: { enum: [ STUDENT_INACTIVE, NOT_AUTHOR ] }
     AcademicNoteScore:
       type: string
       pattern: '^[1-5]\.[0-9]$'
@@ -8069,6 +8238,12 @@ components:
               field: { type: string, enum: [ subject, term, score, note, student, version ] }
               reason: { type: string, enum: [ required, invalid_format, out_of_range, too_many_decimals, already_exists, inactive, stale ] }
   responses:
+    AnnotationBadInput:
+      description: Entrada rechazada; 413 si cuerpo supera 16 KiB. Fields opcional, array cerrado.
+      content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationError' } } }
+    AnnotationConflict:
+      description: 409 STUDENT_INACTIVE o NOT_AUTHOR; nunca cierre global de acceso por rechazo local.
+      content: { application/json: { schema: { $ref: '#/components/schemas/AnnotationError' } } }
     NoteBadInput:
       description: 400 INVALID_INPUT; consulta presente o campos inválidos, con fields cerrados.
       content:

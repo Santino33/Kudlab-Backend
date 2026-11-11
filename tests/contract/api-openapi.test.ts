@@ -113,6 +113,12 @@ it('valida éxitos de todas las operaciones y errores de cada dominio contra el 
   await check(notePath, 'PATCH', await request(concreteNote, 'PATCH', { score: '2.0' }, teacher), 400);
   await check(notePath, 'PATCH', await request(concreteNote, 'PATCH', { score: '2.0', expectedVersion: 1 }, teacher), 409);
   await check(notePath, 'PATCH', await request(`${concreteNotes}/${randomUUID()}`, 'PATCH', { score: '2.0', expectedVersion: 1 }, teacher), 404);
+  const annotations = '/api/v1/student-annotations', annotationPath = `${annotations}/{annotationId}`;
+  const annotation = await check(annotations, 'POST', await request(annotations, 'POST', { studentId: student.id, text: 'Contexto ficticio' }, teacher), 201);
+  await check(annotations, 'GET', await request(`${annotations}?studentId=${student.id}`, 'GET', undefined, teacher), 200);
+  await check(annotations, 'POST', await request(annotations, 'POST', { studentId: student.id, text: '  ' }, teacher), 400);
+  await check(annotationPath, 'PATCH', await request(`${annotations}/${annotation.id}`, 'PATCH', { text: 'Contexto corregido' }, teacher), 200);
+  await check(annotationPath, 'DELETE', await request(`${annotations}/${annotation.id}`, 'DELETE', undefined, teacher), 200);
   await check(`${students}/{id}`, 'PATCH', await request(`${students}/${student.id}`, 'PATCH', { firstName: 'Ejemplo' }, teacher), 200);
   await check(`${students}/{id}/deactivate`, 'POST', await request(`${students}/${student.id}/deactivate`, 'POST', undefined, teacher), 200);
   const roles = '/api/v1/admin-role-requests';
