@@ -5,6 +5,7 @@ import { eq, sql } from 'drizzle-orm';
 import { db } from '../../src/db/client.js';
 import { assignments, recipients, calculationRuns, gameSessions, rawEvents, resultReceipts, runtimeCapabilities } from '../../src/db/schema/game.js';
 import { groups, students } from '../../src/db/schema/academic.js';
+import { tasks } from '../../src/db/schema/tasks.js';
 import { reset } from '../helpers.js';
 import { authorizations, gameDependencies, gameFixture, testGameApp } from '../game-fixture.js';
 import { hash, envelopeSchema, type Envelope } from '../../src/modules/tareas/runtime/contract.js';
@@ -98,6 +99,22 @@ describe('J-02 real PostgreSQL, synthetic participation only', () => {
     expect(Math.abs(values.rt_cv_pct - 32.659863)).toBeLessThanOrEqual(1e-6);
     expect(await db.select().from(resultReceipts)).toHaveLength(1); expect(await db.select().from(calculationRuns)).toHaveLength(1);
     expect((await request(started.path, 'POST', started.input, l.runtime)).status).toBe(409);
+  });
+  it('disabled task rejects new work but preserves assignment replay, READY start and evidence delivery', async () => {
+    const f = await fixture();
+    await db.update(tasks).set({ isEnabled: false }).where(eq(tasks.id, 'TG-01'));
+    expect((await request('/task-assignments', 'POST', { ...f.input, requestId: randomUUID() }, f.a.teacher)).status).toBe(409);
+    expect((await request('/task-assignments', 'POST', f.input, f.a.teacher)).status).toBe(200);
+    const l = await launch(f);
+    expect((await request(`/game-runtime/sessions/${l.context.sessionId}`, 'GET', undefined, l.runtime)).status).toBe(200);
+    await start(l);
+    const e = envelope(l.context), path = `/game-runtime/sessions/${l.context.sessionId}/results`;
+    const saved = await request(path, 'POST', e, l.runtime);
+    expect(saved.status).toBe(201);
+    const again = await request(path, 'POST', e, l.runtime);
+    expect(again.status).toBe(200);
+    expect(await again.json()).toEqual(await saved.json());
+    expect(await db.select().from(resultReceipts)).toHaveLength(1);
   });
   it('lists only the assignments a student is a fixed recipient of, paginated before filtering and scoped to current responsibility', async () => {
     const f = await fixture(), l = await launch(f); await start(l);

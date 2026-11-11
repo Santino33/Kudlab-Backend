@@ -106,7 +106,8 @@ export function createGameService(deps: GameDependencies = {}) {
     if (a.status !== 'OPEN') throw conflict('ASSIGNMENT_CANCELLED');
     if ((!future && now < a.startsAt) || now >= a.endsAt) throw conflict('OUTSIDE_WINDOW');
     const c = await configuration(tx, a.publishedVersionId);
-    if (!c.task.isEnabled || !methodAllowed(c.rule)) throw conflict('TASK_UNAVAILABLE');
+    // Administrative availability gates creation, not previously assigned work.
+    if (!methodAllowed(c.rule)) throw conflict('TASK_UNAVAILABLE');
     return c;
   }
   async function operation(tx: Tx, actor: AcademicActor, input: { requestId: string }, name: string, target: string, payload: unknown, run: () => Promise<string | { id: string; ids: string[]; createdCount: number }>) {
