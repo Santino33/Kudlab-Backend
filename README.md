@@ -105,16 +105,22 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 
 ## Verificación
 
-### Almacenamiento privado de consentimiento — bloque T-05
+### Registro y almacenamiento privado de consentimiento
 
 `src/modules/academico/consents/consent-storage.ts` contiene el adaptador R2;
-todavía no está conectado a rutas docentes, persistencia ni Compose. Lee las cuatro
+conectado al registro y descarga docentes mediante `consents.service.ts`. Lee las cuatro
 variables `CONSENT_STORAGE_*` de `.env.example` desde el entorno privado Backend.
 Solo admite el endpoint S3 HTTPS **Default** de R2 y claves explícitas; configuración
 ausente/inválida deja sus operaciones indisponibles sin impedir crear el adaptador.
 
-El servicio llamador debe autorizar al docente y validar el documento completo antes
-de reservar/subir. `describeConsentEvidence` liga un UUID v4 generado por servidor a
+El servicio autoriza al docente y comprueba archivo no vacío, máximo **10 MiB**,
+cabecera básica PDF/JPEG/PNG y extensión coherente antes de reservar/subir. No confía
+en el MIME declarado. No necesita worker, socket, qpdf/Poppler ni decodificación de
+imágenes. El profesor revisa contenido, firma y legibilidad: el sistema no garantiza
+estructura completa ni rechaza automáticamente contraseña, animación, páginas o
+dimensiones. La evidencia se descarga como adjunto privado, sin vista previa.
+
+`describeConsentEvidence` liga un UUID v4 generado por servidor a
 bytes/tamaño/SHA-256; **no valida PDF/JPEG/PNG**. `putImmutable` usa `If-None-Match: *`
 y confirma los bytes mediante GET, también ante 412 o respuesta de subida incierta.
 No sobrescribe ni borra; un GET 404 tras un PUT incierto sigue siendo indisponibilidad,
@@ -124,8 +130,10 @@ no prueba de rechazo definitivo. El reintento explícito conserva referencia y b
 con máximo de 10 MiB. Cada operación tiene 30 s totales, admite cancelación y cierra
 el stream; el SDK no reintenta automáticamente. Los errores expuestos por este
 adaptador son `UNAVAILABLE` o `EVIDENCE_MISMATCH`, sin diagnóstico crudo del proveedor.
-La futura descarga debe reautorizar después del GET y tratar integridad no comprobable
+La descarga reautoriza después del GET y trata integridad no comprobable
 como indisponibilidad, conservando el consentimiento. `close()` libera el cliente SDK.
+La activación ocurre junto al registro confirmado en el commit, después de verificar
+el objeto guardado; seleccionar un archivo o iniciar su envío no activa al estudiante.
 
 Prueba local sin PostgreSQL, credenciales reales ni peticiones externas:
 `npm test -- tests/unit/consent-storage.test.ts`. Usa serialización/firma del SDK y
