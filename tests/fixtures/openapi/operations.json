@@ -37,6 +37,7 @@
   "patch /api/v1/student-annotations/{annotationId} updateStudentAnnotation",
   "patch /api/v1/students/{id} updateStudent",
   "patch /api/v1/students/{id}/academic-notes/{noteId} updateAcademicNote",
+  "patch /api/v1/tasks/{taskId}/availability setTaskAvailability",
   "post /api/auth/sign-in/email signInEmail",
   "post /api/auth/sign-out signOut",
   "post /api/v1/account-email-changes/confirm confirmEmailChange",

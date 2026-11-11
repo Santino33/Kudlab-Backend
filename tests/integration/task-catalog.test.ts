@@ -17,6 +17,52 @@ describe('catálogo persistido y proyección autorizada', () => {
   beforeEach(async () => { await reset(); await db.execute(sql`truncate tasks restart identity cascade`); await seed(); });
   afterEach(() => vi.restoreAllMocks());
 
+  it('ADMIN cambia el estado global con revisión, sin confundir habilitación con preparación', async () => {
+    const { admin, teacher } = await inviteTeacher();
+    const path = `${base}/TG-01/availability`;
+    const change = await request(path, 'PATCH', { isEnabled: true, expectedRevision: 1 }, admin);
+    expect(change.status).toBe(200);
+    const task = await assertResponse(readContract(), `${base}/{taskId}/availability`, 'patch', change);
+    expect(task).toMatchObject({ isEnabled: true, revision: 2, assignable: false });
+    expect(task.unavailableReasons).not.toContain('TASK_DISABLED');
+    expect(await (await request(`${base}/TG-01`, 'GET', undefined, teacher)).json()).toMatchObject(task);
+    expect((await request(path, 'PATCH', { isEnabled: true, expectedRevision: 1 }, admin)).status).toBe(409);
+    const noop = await request(path, 'PATCH', { isEnabled: true, expectedRevision: 2 }, admin);
+    expect(await noop.json()).toMatchObject({ isEnabled: true, revision: 2 });
+    const changes = await Promise.all([false, false].map(isEnabled => request(path, 'PATCH', { isEnabled, expectedRevision: 2 }, admin)));
+    expect(changes.map(r => r.status).sort()).toEqual([200, 409]);
+    expect(await (await request(`${base}/TG-01`, 'GET', undefined, teacher)).json()).toMatchObject({ isEnabled: false, revision: 3 });
+  });
+
+  it('mutación deniega roles/origen/entrada inválidos sin alterar la tarea', async () => {
+    const { admin, teacher } = await inviteTeacher();
+    const path = `${base}/TG-01/availability`, body = { isEnabled: true, expectedRevision: 1 };
+    for (const [headers, status] of [[{}, 401], [teacher, 403], [{ ...admin, origin: 'https://foreign.invalid' }, 403], [{ ...admin, origin: '' }, 403]] as const) {
+      const response = await request(path, 'PATCH', body, headers);
+      expect(response.status).toBe(status);
+      expect(response.headers.get('cache-control')).toBe('no-store');
+    }
+    for (const payload of [{}, { ...body, isEnabled: 'true' }, { ...body, expectedRevision: 0 }, { ...body, expectedRevision: 1.5 }, { ...body, integrationReady: true }, { ...body, padding: 'x'.repeat(2000) }]) {
+      expect((await request(path, 'PATCH', payload, admin)).status).toBe(400);
+    }
+    for (const [suffix, status] of [['TG-02/availability', 404], ['invalid/availability', 400], ['TG-01/availability?x=1', 400]] as const)
+      expect((await request(`${base}/${suffix}`, 'PATCH', body, admin)).status).toBe(status);
+    expect((await request(path, 'PATCH', body, { ...admin, 'content-type': 'text/plain' })).status).toBe(400);
+    expect(await (await request(`${base}/TG-01`, 'GET', undefined, admin)).json()).toMatchObject({ isEnabled: false, revision: 1 });
+    const [account] = await db.select().from(userAccounts).where(eq(userAccounts.role, 'ADMIN'));
+    await db.update(userAccounts).set({ status: 'INACTIVA' }).where(eq(userAccounts.id, account!.id));
+    expect((await request(path, 'PATCH', body, admin)).status).toBe(403);
+    expect((await db.select().from(tasks))[0]).toMatchObject({ isEnabled: false, revision: 1 });
+  });
+
+  it('un fallo transaccional no confirma ni cambia disponibilidad', async () => {
+    const admin = await login();
+    vi.spyOn(db, 'transaction').mockImplementationOnce(() => { throw new Error('SYNTHETIC_DB_FAILURE'); });
+    const response = await request(`${base}/TG-01/availability`, 'PATCH', { isEnabled: true, expectedRevision: 1 }, admin);
+    expect(response.status).toBe(503);
+    expect((await db.select().from(tasks))[0]).toMatchObject({ isEnabled: false, revision: 1 });
+  });
+
   it('ADMIN y TEACHER activos consultan solo TG-01 y DTO filtrado', async () => {
     const { teacher, admin } = await inviteTeacher();
     const [initial] = await db.select().from(tasks);
