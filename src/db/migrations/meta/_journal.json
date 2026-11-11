@@ -92,6 +92,20 @@
       "when": 1793144836351,
       "tag": "0012_j03_access_codes",
       "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1794241922111,
+      "tag": "0013_consentimiento",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1794275192958,
+      "tag": "0014_observaciones",
+      "breakpoints": true
     }
   ]
 }

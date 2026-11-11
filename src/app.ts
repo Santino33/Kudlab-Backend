@@ -14,6 +14,10 @@ import { resolveActiveIdentity } from './auth/active-identity.js';
 import { checkSessionActivity } from './auth/session-activity.js';
 import { z } from 'zod';
 import { createStudentsRoutes } from './modules/academico/students/students.routes.js';
+import { createConsentsRoutes } from './modules/academico/consents/consents.routes.js';
+import { createIndicatorReadRoutes } from './modules/evolucion/read/routes.js';
+import { createObservationsRoutes } from './modules/seguimiento/observations/observations.routes.js';
+import type { ConsentDependencies } from './modules/academico/consents/consents.service.js';
 import { requireTeacher } from './modules/academico/shared/academic-auth.js';
 import { createDocumentationRoutes } from './docs/documentation.routes.js';
 import { db } from './db/client.js';
@@ -24,7 +28,7 @@ import { groupsRoutes } from './modules/academico/groups/groups.routes.js';
 import { createGameRoutes } from './modules/tareas/runtime/routes.js';
 import type { GameDependencies } from './modules/academico/shared/participation.js';
 
-export function createApp(game: GameDependencies = {}) {
+export function createApp(game: GameDependencies = {}, consents?: ConsentDependencies) {
 const app = new Hono<AuthVariables>();
 const env = loadEnv();
 app.use('/api/*', (c, next) => {
@@ -111,6 +115,10 @@ app.route('/api/v1/auth/password-recovery', recoveryRoutes);
 app.route('/', createGameRoutes(game));
 app.use('/api/v1/students', requireTeacher);
 app.use('/api/v1/students/*', requireTeacher);
+app.route('/api/v1/students', createConsentsRoutes(consents));
+// Indicadores: después de ambas guardias requireTeacher y ANTES de createStudentsRoutes, cuyo use('*') rechaza cualquier query.
+app.route('/', createIndicatorReadRoutes());
+app.route('/', createObservationsRoutes());
 app.route('/api/v1/students', createStudentsRoutes(game));
 app.route('/api/v1/tasks', createCatalogRoutes(game));
 app.route('/api/v1/groups', groupsRoutes);

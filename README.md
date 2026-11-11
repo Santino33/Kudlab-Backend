@@ -87,7 +87,7 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
 
    - `DATABASE_URL`: URL de conexión PostgreSQL de la aplicación. Para migraciones puede utilizarse `MIGRATION_DATABASE_URL` si el usuario que administra el esquema es distinto.
    - `BETTER_AUTH_SECRET`: secreto de al menos 32 caracteres; `BETTER_AUTH_URL`: origen público de esta API, por ejemplo `http://localhost:3000`.
-    - `SPA_ORIGIN`: origen de la aplicación web autorizada, por ejemplo `http://localhost:5173`; `INVITATION_BASE_URL`: URL de su pantalla de aceptación de invitaciones.
+    - `SPA_ORIGIN`: origen de la aplicación web autorizada, por ejemplo `http://localhost:5173`; `INVITATION_BASE_URL`: `<SPA_ORIGIN>/acceso/invitacion`, pantalla pública para establecer contraseña y activar la cuenta. No dirigir invitaciones al login ni a `/accept`. Tras el canje, el profesor inicia sesión por separado.
     - `EMAIL_CHANGE_BASE_URL`: URL de la pantalla de confirmación de cambio de correo, distinta de la de invitación; `RESET_BASE_URL`: pantalla de recuperación de contraseña. Las tres URLs deben pertenecer a `SPA_ORIGIN`, sin credenciales, parámetros ni fragmentos; HTTPS salvo loopback HTTP local. El cliente debe dirigir cada pantalla a su operación correspondiente; este repositorio no implementa esas pantallas.
    - `MAIL_HOST`, `MAIL_PORT`, `MAIL_USER`, `MAIL_PASSWORD` y `MAIL_FROM`: datos del servidor SMTP. Fuera de las pruebas, el envío de correos necesita estos valores.
    - `BOOTSTRAP_ADMIN_NAME`, `BOOTSTRAP_ADMIN_EMAIL` y `BOOTSTRAP_ADMIN_PASSWORD`: datos del primer administrador. El correo debe terminar en `.edu.co` y la contraseña debe tener entre 8 y 128 caracteres, con mayúscula, minúscula y número. El administrador se crea al arrancar **solo si aún no hay cuentas**.
@@ -104,6 +104,32 @@ La implementación utiliza TypeScript, Hono, Better Auth y Drizzle ORM sobre Pos
    La API escucha en el puerto `3000` por defecto; se puede cambiar con `PORT`. Para ejecutarla sin vigilancia de archivos, usa `npm start`.
 
 ## Verificación
+
+### Almacenamiento privado de consentimiento — bloque T-05
+
+`src/modules/academico/consents/consent-storage.ts` contiene el adaptador R2;
+todavía no está conectado a rutas docentes, persistencia ni Compose. Lee las cuatro
+variables `CONSENT_STORAGE_*` de `.env.example` desde el entorno privado Backend.
+Solo admite el endpoint S3 HTTPS **Default** de R2 y claves explícitas; configuración
+ausente/inválida deja sus operaciones indisponibles sin impedir crear el adaptador.
+
+El servicio llamador debe autorizar al docente y validar el documento completo antes
+de reservar/subir. `describeConsentEvidence` liga un UUID v4 generado por servidor a
+bytes/tamaño/SHA-256; **no valida PDF/JPEG/PNG**. `putImmutable` usa `If-None-Match: *`
+y confirma los bytes mediante GET, también ante 412 o respuesta de subida incierta.
+No sobrescribe ni borra; un GET 404 tras un PUT incierto sigue siendo indisponibilidad,
+no prueba de rechazo definitivo. El reintento explícito conserva referencia y bytes.
+
+`readVerified` comprueba metadatos, tamaño real y SHA-256 antes de devolver el buffer,
+con máximo de 10 MiB. Cada operación tiene 30 s totales, admite cancelación y cierra
+el stream; el SDK no reintenta automáticamente. Los errores expuestos por este
+adaptador son `UNAVAILABLE` o `EVIDENCE_MISMATCH`, sin diagnóstico crudo del proveedor.
+La futura descarga debe reautorizar después del GET y tratar integridad no comprobable
+como indisponibilidad, conservando el consentimiento. `close()` libera el cliente SDK.
+
+Prueba local sin PostgreSQL, credenciales reales ni peticiones externas:
+`npm test -- tests/unit/consent-storage.test.ts`. Usa serialización/firma del SDK y
+transporte simulado; no acredita R2 real, validación estructural ni aceptación funcional.
 
 ### Correo con Gmail
 

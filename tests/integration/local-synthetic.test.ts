@@ -66,7 +66,8 @@ it.each([false, true])('CA-03: deactivation blocks new assignment and runtime (a
       configVersion: context.configVersion, configurationHash: context.configurationHash, gameBuildId: context.gameBuildId, state: 'interrupted', terminationReason: 'user_exit',
       clock: { id: randomUUID(), timeOriginUnixMs: Date.now() }, timing: { startedAtMs: 0, finishedAtMs: 0, lastCheckpointAtMs: 0 },
       device: { viewportWidth: 390, viewportHeight: 844, stageWidthCss: 390, stageHeightCss: 772, stageScale: .8125, touchCapable: true }, events: [], incidents: [] };
-    expect((await request(restarted, `/game-runtime/sessions/${context.sessionId}/results`, runtime, envelope)).status).toBe(403);
+    // Consentimiento D-04: an authorized start retains delivery despite later inactivation.
+    expect((await request(restarted, `/game-runtime/sessions/${context.sessionId}/results`, runtime, envelope)).status).toBe(201);
   }
   expect((await (await request(restarted, `/task-assignments/${assignment.id}`, f.a.teacher)).json()).status).toBe('OPEN');
   expect(await db.select().from(assignments)).toHaveLength(1); expect(await db.select().from(rawEvents)).toHaveLength(0);
