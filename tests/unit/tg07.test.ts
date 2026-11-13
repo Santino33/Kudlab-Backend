@@ -50,6 +50,7 @@ describe('TG-07 reference e213cda / CA-02,04,06,07', () => {
     expect(metric(result, 'accuracy_pct')).toEqual(metric(baseline, 'accuracy_pct'));
     expect(metric(result, 'median_total_response_ms')).toEqual(metric(baseline, 'median_total_response_ms'));
     expect(result.summary).toMatchObject({ included: 4, excluded: 2 });
+    expect(result.decisions[5]).toMatchObject({ outcome: 'not_evaluated', positions: [], omissions: 0, included: false });
   });
   it('distinguishes no data from valid trials with zero correct answers', () => {
     expect(metric(calculate({ events: [] }, true), 'accuracy_pct')).toMatchObject({ value: null, unavailabilityReason: 'NO_VALID_TRIALS' });
@@ -79,6 +80,6 @@ describe('TG-07 reference e213cda / CA-02,04,06,07', () => {
     expect(result.decisions[0]).toMatchObject({ positionsCorrect: 2, outcome: 'correct', totalResponseMs: 2500 });
   });
   it('rejects non-finite and negative response latencies', () => {
-    for (const latency of [-1, NaN, Infinity]) expect(() => calculate({ events: [trial([0, 1], [0, 1], latency)] }, true)).toThrow('INVALID_KUD_DICE_TIMING');
+    for (const latency of [-1, -0.01, NaN, Infinity]) expect(() => calculate({ events: [trial([0, 1], [0, 1], latency)] }, true)).toThrow('INVALID_KUD_DICE_TIMING');
   });
 });

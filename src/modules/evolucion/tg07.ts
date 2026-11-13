@@ -24,16 +24,17 @@ const median = (values: readonly number[]) => {
 
 export function calculate(envelope: { events: readonly Trial[] }, methodAllowed: boolean) {
   const decisions = envelope.events.map(trial => {
-    const score = scoreTrial(trial.sequence, trial.responses);
-    const included = trial.valid && trial.invalidReason === null && trial.closureReason !== 'interruption' && trial.responseOpenedAtMs !== null;
+    const evaluated = trial.closureReason !== 'interruption' && trial.responseOpenedAtMs !== null;
+    const score = evaluated ? scoreTrial(trial.sequence, trial.responses) : { ...scoreTrial([], []), outcome: 'not_evaluated' as const };
+    const included = trial.valid && trial.invalidReason === null && evaluated;
     const first = trial.responses[0], last = trial.responses.at(-1);
-    const latency = first && trial.responseOpenedAtMs !== null ? round(first.atMs - trial.responseOpenedAtMs) : null;
-    const total = last && trial.responseOpenedAtMs !== null ? round(last.atMs - trial.responseOpenedAtMs) : null;
+    const latency = first && trial.responseOpenedAtMs !== null ? first.atMs - trial.responseOpenedAtMs : null;
+    const total = last && trial.responseOpenedAtMs !== null ? last.atMs - trial.responseOpenedAtMs : null;
     if (latency !== null && (!Number.isFinite(latency) || latency < 0) || total !== null && (!Number.isFinite(total) || total < 0))
       throw new Error('INVALID_KUD_DICE_TIMING');
     return { trial: trial.trial, length: trial.sequence.length, included,
       reason: included ? null : trial.invalidReason ?? 'NOT_EVALUATED', ...score,
-      firstTapLatencyMs: latency, totalResponseMs: total, earlyTaps: trial.earlyTaps.length };
+      firstTapLatencyMs: latency === null ? null : round(latency), totalResponseMs: total === null ? null : round(total), earlyTaps: trial.earlyTaps.length };
   });
   const valid = decisions.filter(row => row.included), correct = valid.filter(row => row.outcome === 'correct');
   const indicators: Indicator[] = [];
