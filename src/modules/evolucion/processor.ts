@@ -6,6 +6,10 @@ import { taskPublishedVersions } from '../../db/schema/tasks.js';
 import { envelopeSchema, hash } from '../tareas/runtime/contract.js';
 import { syntheticEnabled, type GameDependencies } from '../academico/shared/participation.js';
 import { calculate, RULE } from './tg01.js';
+import { mentalistaEvidence } from '../../db/schema/game.js';
+import { envelopeSchema as mentalistaSchema } from '../tareas/runtime/tg03/contract.js';
+import { supportedRule } from '../tareas/runtime/profiles.js';
+import { calculate as calculateMentalista } from './tg03.js';
 
 export async function processOne(deps: GameDependencies = {}) {
   const synthetic = syntheticEnabled(deps);
@@ -29,18 +33,21 @@ export async function processOne(deps: GameDependencies = {}) {
       .innerJoin(gameConfigurations, eq(gameConfigurations.publishedVersionId, assignments.publishedVersionId))
       .innerJoin(taskPublishedVersions, eq(taskPublishedVersions.id, assignments.publishedVersionId))
       .innerJoin(indicatorRules, eq(indicatorRules.id, claimed.ruleVersionId)).where(eq(gameSessions.id, claimed.sessionId));
-    if (!row || row.config.ruleVersionId !== claimed.ruleVersionId || row.rule.definitionHash !== hash(RULE) || hash(row.rule.definition) !== row.rule.definitionHash) throw new Error('RULE_UNSUPPORTED');
+    if (!row || row.config.ruleVersionId !== claimed.ruleVersionId || row.rule.taskId !== row.s.taskId || !supportedRule(row.rule)) throw new Error('RULE_UNSUPPORTED');
     const trials = await db.select().from(rawEvents).where(eq(rawEvents.sessionId, claimed.sessionId)).orderBy(asc(rawEvents.trial));
     const incidents = await db.select().from(sessionIncidents).where(eq(sessionIncidents.sessionId, claimed.sessionId)).orderBy(asc(sessionIncidents.sequence));
     const r = row.receipt;
-    const e = envelopeSchema.parse({ contractVersion: r.contractVersion, sessionId: row.s.id, submissionId: r.submissionId, taskId: row.s.taskId,
+    const [stored] = row.s.taskId === 'TG-03' ? await db.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, row.s.id)) : [];
+    const e = row.s.taskId === 'TG-03' ? mentalistaSchema.parse(stored?.envelope) : envelopeSchema.parse({ contractVersion: r.contractVersion, sessionId: row.s.id, submissionId: r.submissionId, taskId: row.s.taskId,
       publishedVersionId: row.version.id, configVersion: row.version.version, configurationHash: row.config.configurationHash, gameBuildId: row.config.gameBuildId,
       state: r.producerState, terminationReason: r.terminationReason, clock: { id: r.clockId, timeOriginUnixMs: r.timeOriginUnixMs },
       timing: { startedAtMs: r.startedAtMs, finishedAtMs: r.finishedAtMs, lastCheckpointAtMs: r.lastCheckpointAtMs }, device: r.device,
       events: trials.map(({ id: _, sessionId: __, ...t }) => t), incidents: incidents.map(({ id: _, sessionId: __, ...i }) => i) });
-    if (hash(e) !== claimed.evidenceHash) throw new Error('EVIDENCE_HASH_MISMATCH');
+    if (hash(e) !== claimed.evidenceHash || hash(e) !== r.evidenceHash || e.sessionId !== row.s.id || e.submissionId !== r.submissionId ||
+      e.publishedVersionId !== row.version.id || e.configurationHash !== row.config.configurationHash || hash(row.config.configuration) !== e.configurationHash ||
+      e.gameBuildId !== row.config.gameBuildId || e.contractVersion !== row.config.contractVersion || stored && stored.receiptId !== r.id) throw new Error('EVIDENCE_HASH_MISMATCH');
     const allowed = row.rule.approvalStatus === 'APPROVED' || synthetic;
-    const result = calculate(e, allowed);
+    const result = e.taskId === 'TG-03' ? calculateMentalista(e, allowed) : calculate(e, allowed);
     await db.transaction(async tx => {
       const [current] = await tx.select().from(calculationRuns).where(and(eq(calculationRuns.id, claimed.id), eq(calculationRuns.leaseToken, claimed.leaseToken), eq(calculationRuns.status, 'PROCESSING'), sql`${calculationRuns.leaseUntil} > now()`)).for('update');
       if (!current) return;

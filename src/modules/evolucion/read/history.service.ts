@@ -6,11 +6,15 @@ import type { AcademicTransaction } from '../../academico/shared/academic-auth.j
 import { INDICATOR_METRIC_CODES, INDICATOR_SCOPES, type IndicatorMetricCode, type IndicatorScope } from './definitions.js';
 import type { IndicatorHistorySession, IndicatorValueDto } from './dto.js';
 import { approvalAtCalculation, normalizeExecutionStatus } from './run-state.js';
+import { mentalistaEvidence } from '../../../db/schema/game.js';
+import { configSchema as mentalistaConfig } from '../../tareas/runtime/tg03/contract.js';
+import { taskIdSchema } from '../../tareas/runtime/profiles.js';
+import { MENTALISTA_METRICS, MENTALISTA_SCOPES } from './mentalista-definitions.js';
 
 export type { IndicatorMetricCode, IndicatorScope } from './definitions.js';
 export type SessionResultsScope = { kind: 'student-history' } | { kind: 'course'; groupId: string };
 // `startedFrom` inclusivo y `startedBefore` exclusivo: instantes, nunca fechas de calendario (ver dates.ts).
-export type SessionResultsFilter = { taskId?: 'TG-01'; startedFrom?: Date; startedBefore?: Date; metricCodes?: readonly IndicatorMetricCode[]; scopes?: readonly IndicatorScope[] };
+export type SessionResultsFilter = { taskId?: 'TG-01' | 'TG-03'; startedFrom?: Date; startedBefore?: Date; metricCodes?: readonly IndicatorValueDto['metricCode'][]; scopes?: readonly IndicatorValueDto['scope'][] };
 export type SessionResultsInput = { studentIds: readonly string[]; scope: SessionResultsScope; filter?: SessionResultsFilter;
   // Opcional (ampliación compatible de COORD-02 r2): sin él, `detailAccess` es siempre UNAVAILABLE. Solo la lectura HTTP lo usa.
   viewerAccountId?: string };
@@ -25,12 +29,13 @@ async function readSessions(tx: AcademicTransaction, input: SessionResultsInput,
   const f = input.filter ?? {};
   const conditions = [inArray(gameSessions.studentId, [...input.studentIds]), isNotNull(gameSessions.startedAtServer)];
   if (input.scope.kind === 'course') conditions.push(eq(assignments.groupId, input.scope.groupId));
-  if (f.taskId) conditions.push(eq(gameSessions.taskId, f.taskId));
+  // Course consumers retain TG-01 even when a caller omits or supplies another task.
+  conditions.push(eq(gameSessions.taskId, input.scope.kind === 'course' ? 'TG-01' : f.taskId ?? 'TG-01'));
   if (f.startedFrom) conditions.push(gte(gameSessions.startedAtServer, f.startedFrom));
   if (f.startedBefore) conditions.push(lt(gameSessions.startedAtServer, f.startedBefore));
   if (after) conditions.push(or(lt(gameSessions.startedAtServer, after.at), and(eq(gameSessions.startedAtServer, after.at), lt(gameSessions.id, after.id)))!);
   const rows = await tx.select({ s: gameSessions, configVersion: taskPublishedVersions.version, publishedVersionId: assignments.publishedVersionId,
-    originTeacherId: groups.teacherId, rule: indicatorRules, run: calculationRuns })
+    originTeacherId: groups.teacherId, rule: indicatorRules, run: calculationRuns, configuration: gameConfigurations })
     .from(gameSessions)
     .innerJoin(recipients, eq(recipients.id, gameSessions.recipientId))
     .innerJoin(assignments, eq(assignments.id, recipients.assignmentId))
@@ -43,12 +48,15 @@ async function readSessions(tx: AcademicTransaction, input: SessionResultsInput,
 
   const counts = new Map<string, { trials: number; incidents: number }>();
   const byRun = new Map<string, IndicatorValueDto[]>();
+  const mathematical = new Map<string, typeof mentalistaEvidence.$inferSelect>();
   const wantedMetrics = f.metricCodes, wantedScopes = f.scopes;
   for (let i = 0; i < rows.length; i += BATCH) {
     const batch = rows.slice(i, i + BATCH), sessionIds = batch.map(r => r.s.id), runIds = batch.flatMap(r => r.run ? [r.run.id] : []);
     const trials = await tx.select({ id: rawEvents.sessionId, n: sql<number>`count(*)::int` }).from(rawEvents).where(inArray(rawEvents.sessionId, sessionIds)).groupBy(rawEvents.sessionId);
+    const mathIds = batch.filter(r => r.s.taskId === 'TG-03').map(r => r.s.id);
+    if (mathIds.length) for (const evidence of await tx.select().from(mentalistaEvidence).where(inArray(mentalistaEvidence.sessionId, mathIds))) mathematical.set(evidence.sessionId, evidence);
     const incidents = await tx.select({ id: sessionIncidents.sessionId, n: sql<number>`count(*)::int` }).from(sessionIncidents).where(inArray(sessionIncidents.sessionId, sessionIds)).groupBy(sessionIncidents.sessionId);
-    for (const id of sessionIds) counts.set(id, { trials: trials.find(t => t.id === id)?.n ?? 0, incidents: incidents.find(t => t.id === id)?.n ?? 0 });
+    for (const id of sessionIds) counts.set(id, { trials: mathematical.get(id)?.envelope.events.length ?? trials.find(t => t.id === id)?.n ?? 0, incidents: incidents.find(t => t.id === id)?.n ?? 0 });
     if (runIds.length) {
       const values = await tx.select().from(calculatedIndicators).where(and(inArray(calculatedIndicators.runId, runIds),
         wantedMetrics ? inArray(calculatedIndicators.metricCode, [...wantedMetrics]) : undefined, wantedScopes ? inArray(calculatedIndicators.scope, [...wantedScopes]) : undefined));
@@ -60,11 +68,16 @@ async function readSessions(tx: AcademicTransaction, input: SessionResultsInput,
     }
   }
   // Mismo orden que el detalle de sesión: alcance (SESSION, SEGMENT_1…3) y luego métrica.
-  const order = (v: IndicatorValueDto) => INDICATOR_SCOPES.indexOf(v.scope) * 10 + INDICATOR_METRIC_CODES.indexOf(v.metricCode);
+  const allScopes: readonly string[] = [...INDICATOR_SCOPES, ...MENTALISTA_SCOPES];
+  const allMetrics: readonly string[] = [...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS];
+  const order = (v: IndicatorValueDto) => allScopes.indexOf(v.scope) * 100 + allMetrics.indexOf(v.metricCode);
   const now = new Date();
   return rows.map(r => {
     const c = counts.get(r.s.id)!;
-    return { sessionId: r.s.id, taskId: 'TG-01' as const, attemptNumber: r.s.attemptNumber, occurredAt: r.s.startedAtServer!.toISOString(),
+    const evidence = mathematical.get(r.s.id)?.envelope;
+    return { sessionId: r.s.id, taskId: taskIdSchema.parse(r.s.taskId), attemptNumber: r.s.attemptNumber, occurredAt: r.s.startedAtServer!.toISOString(),
+      ...(r.s.taskId === 'TG-03' ? { mentalista: { configuration: mentalistaConfig.parse(r.configuration.configuration), configurationHash: r.configuration.configurationHash,
+        gameBuildId: 'tg03-mentalista-1' as const, device: evidence?.device ?? null, preparation: evidence?.preparation ?? null } } : {}),
       executionStatus: normalizeExecutionStatus({ executionStatus: r.s.executionStatus, startAllowedUntil: r.s.startAllowedUntil, startedAtServer: r.s.startedAtServer }, now),
       processingStatus: r.s.processingStatus, configVersion: r.configVersion, publishedVersionId: r.publishedVersionId, incidentCount: c.incidents, recordedTrialCount: c.trials,
       rule: { code: r.rule.code, version: r.rule.version, approval: { current: r.rule.approvalStatus, approvedAt: r.rule.approvedAt?.toISOString() ?? null } },

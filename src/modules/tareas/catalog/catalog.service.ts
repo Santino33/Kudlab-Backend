@@ -2,14 +2,14 @@ import { desc, eq, inArray } from 'drizzle-orm';
 import { db } from '../../../db/client.js';
 import { tasks, taskPublishedVersions } from '../../../db/schema/tasks.js';
 import { gameConfigurations, indicatorRules } from '../../../db/schema/game.js';
-import { compatible, hash } from '../runtime/contract.js';
-import { RULE } from '../../evolucion/tg01.js';
+import { hash } from '../runtime/contract.js';
+import { compatible, supportedRule } from '../runtime/profiles.js';
 import { participationProvider, syntheticEnabled, type GameDependencies } from '../../academico/shared/participation.js';
 import { z } from 'zod';
 import { withAcademicAccess, type AcademicActor } from '../../academico/shared/academic-auth.js';
 import { GameError } from '../runtime/errors.js';
 
-const catalogIds = ['TG-01'];
+const catalogIds = ['TG-01', 'TG-03'];
 export type UnavailableReason = 'INTEGRATION_PENDING' | 'CONFIGURATION_UNPUBLISHED' | 'TASK_DISABLED' | 'CONFIGURATION_UNSUPPORTED' | 'METHODOLOGY_PENDING';
 type PublishedVersion = { id: string; version: number } | null;
 
@@ -33,10 +33,10 @@ async function catalogRows(id?: string) {
 
 function summary({ task, publishedVersion, configuration, rule }: Awaited<ReturnType<typeof catalogRows>>[number], deps: GameDependencies) {
   participationProvider(deps);
-  const integrationReady = Boolean(configuration && compatible(configuration.contractVersion, configuration.gameBuildId, configuration.configuration) && hash(configuration.configuration) === configuration.configurationHash);
+  const integrationReady = Boolean(configuration && compatible(task.id, configuration.contractVersion, configuration.gameBuildId, configuration.configuration) && hash(configuration.configuration) === configuration.configurationHash);
   const readiness = taskReadiness(task.isEnabled, integrationReady, publishedVersion);
   if (publishedVersion && !integrationReady) readiness.unavailableReasons.push('CONFIGURATION_UNSUPPORTED');
-  if (rule && (hash(rule.definition) !== hash(RULE) || hash(rule.definition) !== rule.definitionHash || rule.approvalStatus !== 'APPROVED' && !syntheticEnabled(deps))) readiness.unavailableReasons.push('METHODOLOGY_PENDING');
+  if (configuration && (!rule || rule.taskId !== task.id || !supportedRule(rule) || rule.approvalStatus !== 'APPROVED' && !syntheticEnabled(deps))) readiness.unavailableReasons.push('METHODOLOGY_PENDING');
   return { id: task.id, title: task.title, description: task.description, isEnabled: task.isEnabled,
     integrationReady, publishedVersion, assignable: readiness.unavailableReasons.length === 0, unavailableReasons: readiness.unavailableReasons, revision: task.revision };
 }

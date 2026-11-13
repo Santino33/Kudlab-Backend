@@ -16,12 +16,14 @@ describe('lecturas HTTP de indicadores (T-B01/T-B02)', () => {
   beforeEach(async () => { await reset(); });
   afterAll(async () => { await reset(); });
 
-  it('catálogo: TEACHER ve seis indicadores sin caché; ADMIN 403; sin sesión 401; con query 400', async () => {
+  it('catálogo: TEACHER ve indicadores por tarea sin caché; ADMIN 403; sin sesión 401; con query 400', async () => {
     const x = await setup();
     const ok = await x.get('/api/v1/indicator-definitions', x.a);
     expect(ok.status).toBe(200); expect(ok.headers.get('cache-control')).toBe('no-store');
     await assertResponse(contract, '/api/v1/indicator-definitions', 'get', ok.clone());
-    const body = await ok.json(); expect(indicatorDefinitionsResponseSchema.safeParse(body).success).toBe(true); expect(body.items).toHaveLength(6);
+    const body = indicatorDefinitionsResponseSchema.parse(await ok.json());
+    expect(body.items.filter(i => i.taskId === 'TG-01')).toHaveLength(6);
+    expect(body.items.filter(i => i.taskId === 'TG-03')).toHaveLength(14);
     expect((await x.get('/api/v1/indicator-definitions', x.admin)).status).toBe(403);
     expect((await x.get('/api/v1/indicator-definitions')).status).toBe(401);
     expect((await x.get('/api/v1/indicator-definitions?x=1', x.a)).status).toBe(400);

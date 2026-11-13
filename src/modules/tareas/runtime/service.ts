@@ -11,10 +11,11 @@ import { withAcademicAccess, type AcademicActor, type AcademicTransaction as Tx 
 import { participationProvider, requireParticipation, syntheticEnabled, type GameDependencies } from '../../academico/shared/participation.js';
 import { hasActiveIdentity } from '../../usuarios/shared/accounts.types.js';
 import { notFound } from '../../academico/shared/academic.errors.js';
-import { compatible, envelopeSchema, hash, secretDigest, uuid, uuidV4, secret, type Envelope } from './contract.js';
+import { hash, secretDigest, uuid, uuidV4, secret } from './contract.js';
+import { compatible, envelopeSchema, supportedRule } from './profiles.js';
+import { mentalistaEvidence } from '../../../db/schema/game.js';
 import { GameError, conflict } from './errors.js';
 import { cursorFor, cursorPosition, decryptGrant, encryptGrant, runtimeSettings } from './security.js';
-import { RULE } from '../../evolucion/tg01.js';
 import { requestInput, createInput } from './dto.js';
 import { accessCodes, accessClaims } from '../../../db/schema/access.js';
 import { accessDigest, accessSettings, codeInput, newCode, openCode, sealCode } from './access-security.js';
@@ -48,8 +49,7 @@ export function createGameService(deps: GameDependencies = {}) {
     if (!s || s.studentId !== studentId || s.recipientId !== c.recipientId) throw new GameError(403, 'PARTICIPATION_BLOCKED');
     await requireStartedAuthorization(tx, s);
   }
-  const methodAllowed = (rule: typeof indicatorRules.$inferSelect) => hash(rule.definition) === rule.definitionHash &&
-    hash(rule.definition) === hash(RULE) && (rule.approvalStatus === 'APPROVED' || syntheticEnabled(deps));
+  const methodAllowed = (rule: typeof indicatorRules.$inferSelect) => supportedRule(rule) && (rule.approvalStatus === 'APPROVED' || syntheticEnabled(deps));
   async function ownGroup(tx: Tx, actor: AcademicActor, id: string) {
     resourceId(id);
     const [group] = await tx.select().from(groups).where(and(eq(groups.id, id), eq(groups.teacherId, actor.accountId))).for('share');
@@ -95,7 +95,7 @@ export function createGameService(deps: GameDependencies = {}) {
       .innerJoin(taskPublishedVersions, eq(taskPublishedVersions.id, gameConfigurations.publishedVersionId))
       .innerJoin(tasks, eq(tasks.id, taskPublishedVersions.taskId)).innerJoin(indicatorRules, eq(indicatorRules.id, gameConfigurations.ruleVersionId))
       .where(eq(gameConfigurations.publishedVersionId, id)).for('share');
-    if (!c || c.rule.taskId !== c.task.id || !compatible(c.config.contractVersion, c.config.gameBuildId, c.config.configuration) || hash(c.config.configuration) !== c.config.configurationHash)
+    if (!c || c.rule.taskId !== c.task.id || !compatible(c.task.id, c.config.contractVersion, c.config.gameBuildId, c.config.configuration) || hash(c.config.configuration) !== c.config.configurationHash)
       throw conflict('CONFIGURATION_UNSUPPORTED');
     return c;
   }
@@ -157,14 +157,16 @@ export function createGameService(deps: GameDependencies = {}) {
   }
   async function sessionSummary(tx: Tx, s: SessionRow) {
     const { a, c } = await sessionConfig(tx, s);
-    const [counts] = await tx.select({ n: sql<number>`count(*)::int` }).from(rawEvents).where(eq(rawEvents.sessionId, s.id));
+    const [counts] = s.taskId === 'TG-03'
+      ? await tx.select({ n: sql<number>`jsonb_array_length(${mentalistaEvidence.envelope}->'events')` }).from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, s.id))
+      : await tx.select({ n: sql<number>`count(*)::int` }).from(rawEvents).where(eq(rawEvents.sessionId, s.id));
     const [incidents] = await tx.select({ n: sql<number>`count(*)::int` }).from(sessionIncidents).where(eq(sessionIncidents.sessionId, s.id));
     const now = Date.now();
     const executionStatus = s.executionStatus === 'READY' && s.startAllowedUntil.getTime() <= now ? 'EXPIRED' : s.executionStatus === 'RUNNING' && s.startedAtServer!.getTime() + 1920000 <= now ? 'UNCONFIRMED' : s.executionStatus;
     return { id: s.id, studentId: s.studentId, taskId: s.taskId, assignmentId: a.id, attemptNumber: s.attemptNumber, launchMode: s.launchMode,
       configVersion: c.version.version, gameBuildId: c.config.gameBuildId, executionStatus, processingStatus: s.processingStatus,
       preparedAt: s.preparedAt.toISOString(), startedAtServer: s.startedAtServer?.toISOString() ?? null, receivedAt: s.closedReceivedAt?.toISOString() ?? null,
-      incidentCount: incidents!.n, recordedTrialCount: counts!.n };
+      incidentCount: incidents!.n, recordedTrialCount: counts?.n ?? 0 };
   }
   async function currentIssuer(tx: Tx, accountId: string, groupId: string) {
     const [g] = await tx.select().from(groups).where(eq(groups.id, groupId)).for('share');
@@ -218,7 +220,7 @@ export function createGameService(deps: GameDependencies = {}) {
     const configured = await ready(tx, a, now);
     const existing = await tx.select().from(gameSessions).where(and(eq(gameSessions.studentId, r.studentId), eq(gameSessions.taskId, a.taskId), inArray(gameSessions.executionStatus, ['READY', 'RUNNING'])));
     if (existing[0]?.executionStatus === 'RUNNING' || existing[0] && (code || existing[0].launchMode === 'CODE' || existing[0].recipientId !== r.id)) throw conflict('ACTIVE_SESSION');
-    if (!existing[0] && configured.config.contractVersion !== '1.1') throw conflict('CONFIGURATION_UNSUPPORTED');
+    if (!existing[0] && !['1.1', '2.0'].includes(configured.config.contractVersion)) throw conflict('CONFIGURATION_UNSUPPORTED');
     const [count] = await tx.select({ n: sql<number>`count(*)::int` }).from(gameSessions).where(and(eq(gameSessions.recipientId, r.id), sql`${gameSessions.attemptNumber} is not null`));
     if (count!.n >= a.maxAttempts) throw conflict('ATTEMPT_LIMIT');
     const until = new Date(Math.min((existing[0]?.preparedAt ?? now).getTime() + 900000, a.endsAt.getTime(), validUntil?.getTime() ?? Infinity, code?.expiresAt.getTime() ?? Infinity));
@@ -416,7 +418,7 @@ export function createGameService(deps: GameDependencies = {}) {
         await ownGroup(tx, actor, input.groupId);
         const op = await operation(tx, actor, input, 'CREATE_ASSIGNMENT', input.groupId, content, async () => {
           const c = await configuration(tx, input.publishedVersionId);
-          if (c.config.contractVersion !== '1.1') throw conflict('CONFIGURATION_UNSUPPORTED');
+          if (!['1.1', '2.0'].includes(c.config.contractVersion)) throw conflict('CONFIGURATION_UNSUPPORTED');
           if (c.task.id !== input.taskId || !c.task.isEnabled || !methodAllowed(c.rule)) throw conflict('TASK_UNAVAILABLE');
           for (const id of [...input.studentIds].sort()) { await lockStudent(tx, id); const s = await ownStudent(tx, actor, id); if (s.groupId !== input.groupId) throw notFound(); await requireParticipation(participation, tx, id, new Date()); }
           const [a] = await tx.insert(assignments).values({ ...content, studentIds: undefined, createdBy: actor.accountId, startsAt: new Date(input.startsAt), endsAt: new Date(input.endsAt), requestId, requestHash: hash(content) } as typeof assignments.$inferInsert).returning();
@@ -594,7 +596,8 @@ export function createGameService(deps: GameDependencies = {}) {
         if (global) throw new GameError(409, 'RESULT_CONFLICT');
         const [receipt] = await tx.insert(resultReceipts).values({ sessionId: id, submissionId: e.submissionId, contractVersion: e.contractVersion, evidenceHash: fingerprint,
           producerState: e.state, terminationReason: e.terminationReason, clockId: e.clock.id, timeOriginUnixMs: e.clock.timeOriginUnixMs, ...e.timing, device: e.device }).returning();
-        if (e.events.length) await tx.insert(rawEvents).values(e.events.map(t => ({ sessionId: id, ...t })));
+        if (e.taskId === 'TG-03') await tx.insert(mentalistaEvidence).values({ sessionId: id, receiptId: receipt!.id, envelope: e });
+        else if (e.events.length) await tx.insert(rawEvents).values(e.events.map(t => ({ sessionId: id, ...t })));
         if (e.incidents.length) await tx.insert(sessionIncidents).values(e.incidents.map(i => ({ sessionId: id, ...i })));
         await tx.insert(calculationRuns).values({ sessionId: id, ruleVersionId: c.rule.id, runNumber: 1, evidenceHash: fingerprint });
         await tx.update(gameSessions).set({ executionStatus: e.state === 'completed' ? 'COMPLETED' : 'INTERRUPTED', processingStatus: 'PENDING', closedReceivedAt: receipt!.receivedAt }).where(eq(gameSessions.id, id));
@@ -627,7 +630,9 @@ export function createGameService(deps: GameDependencies = {}) {
         const values = run?.status === 'SUCCEEDED' ? await tx.select().from(calculatedIndicators).where(eq(calculatedIndicators.runId, run.id)).orderBy(
           sql`case ${calculatedIndicators.scope} when 'SESSION' then 0 when 'SEGMENT_1' then 1 when 'SEGMENT_2' then 2 else 3 end`,
           sql`case ${calculatedIndicators.metricCode} when 'accuracy_pct' then 0 when 'omission_rate_pct' then 1 when 'commission_rate_pct' then 2 when 'median_reaction_time_ms' then 3 when 'rt_sd_ms' then 4 else 5 end`) : [];
-        return { ...await sessionSummary(tx, s), publishedVersionId: c.version.id, configurationHash: c.config.configurationHash, configuration: c.config.configuration,
+        const [mentalista] = s.taskId === 'TG-03' ? await tx.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, id)) : [];
+        return { ...await sessionSummary(tx, s), ...(s.taskId === 'TG-03' ? { preparation: mentalista?.envelope.preparation ?? null, extraResponseCount: mentalista?.envelope.extraResponses.length ?? 0 } : {}),
+          publishedVersionId: c.version.id, configurationHash: c.config.configurationHash, configuration: c.config.configuration,
           declaredState: receipt?.producerState ?? null, terminationReason: receipt?.terminationReason ?? null,
           measuredDurationMs: receipt ? receipt.finishedAtMs - receipt.startedAtMs : null, device: receipt?.device ?? null, receipt: receipt ? receiptDto(receipt) : null,
           calculation: run ? { runId: run.id, ruleCode: c.rule.code, ruleVersion: c.rule.version, status: run.status, calculatedAt: run.finishedAt?.toISOString() ?? null, summary: run.summary,
@@ -641,6 +646,11 @@ export function createGameService(deps: GameDependencies = {}) {
         const [run] = s.activeCalculationRunId ? await tx.select().from(calculationRuns).where(eq(calculationRuns.id, s.activeCalculationRunId)) : [];
         const decisions = (run?.evidenceDecisions ?? []) as { trial: number; included: boolean; rtIncluded: boolean; reason: string | null }[];
         if (kind === 'trials') {
+          if (s.taskId === 'TG-03') {
+            const [stored] = await tx.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, id));
+            const rows = (stored?.envelope.events ?? []).filter(t => t.trial > position), page = rows.slice(0, paging.limit);
+            return { items: page.map(t => ({ ...t, calculationDecision: decisions.find(d => d.trial === t.trial) ?? null })), nextCursor: rows.length > paging.limit ? cursorFor(filter, page.at(-1)!.trial) : null };
+          }
           const rows = await tx.select().from(rawEvents).where(and(eq(rawEvents.sessionId, id), sql`${rawEvents.trial} > ${position}`)).orderBy(asc(rawEvents.trial)).limit(paging.limit + 1), page = rows.slice(0, paging.limit);
           return { items: page.map(({ id: _, sessionId: __, ...t }) => ({ ...t, calculationDecision: decisions.find(d => d.trial === t.trial) ?? null })), nextCursor: rows.length > paging.limit ? cursorFor(filter, page.at(-1)!.trial) : null };
         }
