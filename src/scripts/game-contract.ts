@@ -8,6 +8,8 @@ import { configSchema, contextSchema, envelopeSchema } from '../modules/tareas/r
 import { profile, trialSchema as mentalistaTrial, BUILD_ID, CONTRACT_VERSION } from '../modules/tareas/runtime/tg03/contract.js';
 import { buildSequence } from '../modules/tareas/runtime/tg03/bank.js';
 import * as kudDice from '../modules/tareas/runtime/tg07/contract.js';
+import * as palabra from '../modules/tareas/runtime/tg02/contract.js';
+import { envelope as palabraFixture } from '../../tests/tg02-envelope.js';
 import { buildSequences } from '../modules/tareas/runtime/tg07/sequence.js';
 import { KUD_DICE_METRICS, KUD_DICE_SCOPES } from '../modules/evolucion/read/kud-dice-definitions.js';
 import { indicatorDefinitionSchema, indicatorDefinitionsResponseSchema, indicatorValueSchema, indicatorHistorySessionSchema, indicatorHistoryResponseSchema } from '../modules/evolucion/read/dto.js';
@@ -22,7 +24,7 @@ const schemas = { GameConfig: configSchema, RuntimeContext: contextSchema, Runti
   Assignment: assignmentSchema, AssignmentSummary: assignmentSummarySchema, AssignmentPage: page(assignmentSummarySchema), AssignmentCreate: createInput,
   OperationRequest: requestInput, LaunchGrant: grantSchema, SessionSummary: sessionSummarySchema, SessionDetail: sessionDetailSchema, SessionPage: page(sessionSummarySchema),
   RecoveryRequest: requestInput.extend({ submissionId: uuidV4 }), ClaimRequest: z.strictObject({ claimId: uuidV4, runtimeSecret: secret }), StartRequest: z.strictObject({ startId: uuidV4 }),
-  EvidencePage: page(z.union([trialSchema.safeExtend({ calculationDecision: z.unknown() }), mentalistaTrial.safeExtend({ calculationDecision: z.unknown() }), kudDice.trialSchema.safeExtend({ calculationDecision: z.unknown() }), incidentSchema, kudDice.incidentSchema])), ReceiptResponse: z.strictObject({ receipt: receiptSchema.nullable() }),
+  EvidencePage: page(z.union([trialSchema.safeExtend({ calculationDecision: z.unknown() }), mentalistaTrial.safeExtend({ calculationDecision: z.unknown() }), kudDice.trialSchema.safeExtend({ calculationDecision: z.unknown() }), palabra.trialSchema.safeExtend({ calculationDecision: z.unknown() }), incidentSchema, kudDice.incidentSchema, palabra.incidentSchema])), ReceiptResponse: z.strictObject({ receipt: receiptSchema.nullable() }),
   ProcessingRetry: z.strictObject({ sessionId: uuid, runId: uuid, processingStatus: z.literal('PENDING') }),
   CodeMetadata: codeMetadataSchema, CodeBatchRequest: codeBatchInput, CodeBatch: codeBatchSchema, CodePage: page(codeMetadataSchema), CodeReveal: codeRevealSchema,
   CodeClaim: codeClaimInput, CodeRecover: codeRecoverInput, RecoveryCodeRequest: recoveryCodeInput, EmptyRequest: z.strictObject({}),
@@ -105,9 +107,26 @@ const dicePartial = kudDice.envelopeSchema.parse({ ...diceFull, state: 'interrup
   timing: { startedAtMs: 0, finishedAtMs: 100, lastCheckpointAtMs: 100, measurementStartedAtMs: null, measurementFinishedAtMs: null },
   preparation: { instruction: { shownAtMs: 10, acceptedAtMs: null, repeats: 0 }, demoShown: false, practiceCompleted: false, practice: [] } });
 files['envelope-tg07.partial-0.synthetic.json'] = JSON.stringify(dicePartial, null, 2) + '\n';
-const manifest = { version: '1.4.0', contracts: ['1.0', '1.1', '2.0'], producer: 'Kudlab-backend', canonicalization: 'RFC8785', files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, sha(content)])) };
+const palabraConfig = palabra.profile(), palabraFull = palabraFixture();
+files['palabra-intrusa-profile.json'] = JSON.stringify({ config: palabraConfig, configurationHash: hash(palabraConfig) }, null, 2) + '\n';
+files['palabra-intrusa-items.json'] = await readFile('src/modules/tareas/runtime/tg02/items.json', 'utf8');
+files['palabra-intrusa-sequence.ts'] = (await readFile('src/modules/tareas/runtime/tg02/sequence.ts', 'utf8')).replace("'./items.json'", "'./palabra-intrusa-items.json'");
+files['palabra-intrusa-validation.ts'] = (await readFile('src/modules/tareas/runtime/tg02/contract.ts', 'utf8'))
+  .replace("import { hash, uuid, uuidV4 } from '../contract.js';", "const uuid = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);\nconst uuidV4 = z.string().regex(/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);")
+  .replace("import { PROFILE } from './profile.js';", "import fixedProfile from './palabra-intrusa-profile.json' with { type: 'json' };\nconst PROFILE = fixedProfile.config;")
+  .replace("from './sequence.js'", "from './palabra-intrusa-sequence.js'")
+  .replaceAll('hash(PROFILE)', 'fixedProfile.configurationHash')
+  .replace("Buffer.byteLength(JSON.stringify(e), 'utf8')", 'new TextEncoder().encode(JSON.stringify(e)).length');
+files['context-tg02.synthetic.json'] = JSON.stringify(contextSchema.parse({ ...syntheticContext, taskId: 'TG-02', config: palabraConfig,
+  configurationHash: hash(palabraConfig), gameBuildId: palabra.BUILD_ID, contractVersion: palabra.CONTRACT_VERSION }), null, 2) + '\n';
+files['envelope-tg02.synthetic.json'] = JSON.stringify(palabraFull, null, 2) + '\n';
+files['envelope-tg02.partial-0.synthetic.json'] = JSON.stringify(palabra.envelopeSchema.parse({ ...palabraFull,
+  state: 'interrupted', terminationReason: 'user_exit', phaseReached: 'intro', events: [],
+  timing: { startedAtMs: 0, finishedAtMs: 100, lastCheckpointAtMs: 100, measurementStartedAtMs: null, measurementFinishedAtMs: null, pausedMs: 0 },
+  preparation: { instruction: { shownAtMs: 10, acceptedAtMs: null, repeats: 0 }, practiceCompleted: false, practice: [] } }), null, 2) + '\n';
+const manifest = { version: '1.5.0', contracts: ['1.0', '1.1', '2.0'], producer: 'Kudlab-backend', canonicalization: 'RFC8785', files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, sha(content)])) };
 files['manifest.json'] = JSON.stringify(manifest, null, 2) + '\n';
-for (const target of ['contract/runtime-1.4.0', ...process.argv.slice(2)]) {
+for (const target of ['contract/runtime-1.5.0', ...process.argv.slice(2)]) {
   await mkdir(resolve(target), { recursive: true });
   for (const [name, body] of Object.entries(files)) await writeFile(resolve(target, name), body);
 }
@@ -154,7 +173,7 @@ for (const [method, route, operationId, summary, input, output, status] of defin
   function param(name: string, schema: unknown, required = false) { parameters.push({ name, in: 'query', required, schema }); }
   if (output.endsWith('Page')) { param('cursor', { type: 'string', maxLength: 2048 }); param('limit', { type: 'integer', minimum: 1, maximum: 100, default: 25 }); }
   if (operationId === 'listTaskAssignments') param('groupId', jsonSchema(uuid), true);
-  if (operationId === 'listStudentTaskSessions') param('taskId', { type: 'string', enum: ['TG-01', 'TG-03', 'TG-07'] });
+  if (operationId === 'listStudentTaskSessions') param('taskId', { type: 'string', enum: ['TG-01', 'TG-02', 'TG-03', 'TG-07'] });
   if (operationId === 'listTaskEvidence') param('kind', { type: 'string', enum: ['trials', 'incidents'] }, true);
   if (operationId === 'getEvidenceReceipt') param('submissionId', jsonSchema(uuidV4), true);
   const responses: Record<string, unknown> = { [status]: response(output) };
@@ -179,4 +198,4 @@ doc.setIn(['paths', '/api/v1/students/{id}/indicator-history', 'get', 'parameter
 for (const name of ['Actividades', 'Runtime', 'Accesos']) if (!tags.some(t => t.name === name)) tags.push({ name, description: name === 'Accesos' ? 'Códigos individuales de cinco caracteres; canje público sin cookies docentes. Uso real bloqueado.' : name === 'Runtime' ? 'API restringida del juego, sin cuentas estudiantiles.' : 'Asignación supervisada y consulta individual TEACHER.' });
 doc.set('tags', tags);
 await writeFile(path, String(doc));
-console.log('Artefacto 1.4.0: sobres TG-01 1.0/1.1, TG-03 y TG-07 2.0; históricos preservados.');
+console.log('Artefacto 1.5.0: sobres TG-01 1.0/1.1, TG-02/TG-03/TG-07 2.0; históricos preservados.');
