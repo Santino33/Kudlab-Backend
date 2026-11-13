@@ -4,6 +4,7 @@ import SwaggerParser from '@apidevtools/swagger-parser';
 import { Ajv2020 } from 'ajv/dist/2020.js';
 import addFormatsModule from 'ajv-formats';
 import type { FormatsPlugin } from 'ajv-formats';
+import type { ValidateFunction } from 'ajv';
 import type { OpenAPI } from 'openapi-types';
 
 // The parsed contract is dynamic test data, not a second hand-maintained DTO model.
@@ -32,8 +33,17 @@ export function operations(doc: Document): [string, string, any][] {
   return Object.entries(doc.paths).flatMap(([path, entry]: [string, any]) =>
     methods.filter((method) => entry[method]).map((method): [string, string, any] => [path, method, entry[method]]));
 }
+const compiled = new WeakMap<Document, Map<unknown, ValidateFunction>>();
+function validator(doc: Document, schema: any) {
+  let cache = compiled.get(doc);
+  if (!cache) { cache = new Map(); compiled.set(doc, cache); }
+  const actual = resolve(doc, schema);
+  let check = cache.get(actual);
+  if (!check) { check = ajv.compile({ ...actual, components: doc.components }); cache.set(actual, check); }
+  return check;
+}
 export function assertSchema(doc: Document, schema: any, value: unknown) {
-  const check = ajv.compile({ ...schema, components: doc.components });
+  const check = validator(doc, schema);
   if (!check(value)) throw new Error(ajv.errorsText(check.errors, { separator: '\n' }));
 }
 export async function validateDocument(doc: Document) {
@@ -59,11 +69,14 @@ export async function validateDocument(doc: Document) {
   }
 }
 export async function validateExamples(doc: Document) {
+  const visited = new WeakSet<object>();
   function schemaExamples(schema: any) {
     if (!schema || typeof schema !== 'object') return;
     const actual = resolve(doc, schema);
+    if (visited.has(actual)) return;
+    visited.add(actual);
     // Compile even schemas without examples: this also detects invalid patterns/formats.
-    ajv.compile({ ...actual, components: doc.components });
+    validator(doc, actual);
     if ('example' in actual) assertSchema(doc, schema, actual.example);
     for (const example of actual.examples ?? []) assertSchema(doc, schema, example);
     for (const child of Object.values(actual.properties ?? {})) schemaExamples(child);

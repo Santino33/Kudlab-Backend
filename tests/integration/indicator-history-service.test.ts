@@ -77,7 +77,10 @@ describe('readIndicatorCatalog (T-A06)', () => {
     await indicatorWorld();
     const { items } = await readIndicatorCatalog();
     expect(indicatorDefinitionsResponseSchema.safeParse({ items }).success).toBe(true);
-    expect(items).toHaveLength(6);
-    expect(items.every(i => i.rule?.approval.current === 'PROPOSED' && i.rule.approval.approvedAt === null)).toBe(true);
+    const tg01 = items.filter(i => i.taskId === 'TG-01'), tg03 = items.filter(i => i.taskId === 'TG-03');
+    expect(tg01).toHaveLength(6); expect(tg03).toHaveLength(14);
+    expect(tg01.every(i => i.rule?.approval.current === 'PROPOSED' && i.rule.approval.approvedAt === null)).toBe(true);
+    expect(tg03.every(i => i.rule === null)).toBe(true);
+    expect(new Set(items.map(i => `${i.taskId}:${i.metricCode}`)).size).toBe(20);
   });
 });

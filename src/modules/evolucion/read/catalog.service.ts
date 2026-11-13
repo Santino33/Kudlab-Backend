@@ -3,6 +3,8 @@ import { db } from '../../../db/client.js';
 import { indicatorRules } from '../../../db/schema/game.js';
 import { hash } from '../../tareas/runtime/contract.js';
 import { RULE } from '../tg01.js';
+import { RULE as MENTALISTA_RULE } from '../tg03.js';
+import { MENTALISTA_DEFINITIONS } from './mentalista-definitions.js';
 import { INDICATOR_DEFINITIONS } from './definitions.js';
 import type { IndicatorDefinitionDto, RuleRef } from './dto.js';
 
@@ -19,5 +21,8 @@ export async function readIndicatorCatalog(executor: Pick<typeof db, 'select'> =
   // Solo la fila cuya definición coincide con la regla que el código calcula (código, versión y hash).
   const [row] = await executor.select({ approvalStatus: indicatorRules.approvalStatus, approvedAt: indicatorRules.approvedAt }).from(indicatorRules)
     .where(and(eq(indicatorRules.taskId, 'TG-01'), eq(indicatorRules.code, RULE.code), eq(indicatorRules.version, RULE.version), eq(indicatorRules.definitionHash, hash(RULE))));
-  return { items: buildIndicatorCatalog(row) };
+  const [mentalista] = await executor.select({ approvalStatus: indicatorRules.approvalStatus, approvedAt: indicatorRules.approvedAt }).from(indicatorRules)
+    .where(and(eq(indicatorRules.taskId, 'TG-03'), eq(indicatorRules.code, MENTALISTA_RULE.code), eq(indicatorRules.version, MENTALISTA_RULE.version), eq(indicatorRules.definitionHash, hash(MENTALISTA_RULE))));
+  const rule: RuleRef | null = mentalista ? { code: MENTALISTA_RULE.code, version: MENTALISTA_RULE.version, approval: { current: mentalista.approvalStatus, approvedAt: mentalista.approvedAt?.toISOString() ?? null } } : null;
+  return { items: [...buildIndicatorCatalog(row), ...MENTALISTA_DEFINITIONS.map(d => ({ ...d, rule }))] };
 }
