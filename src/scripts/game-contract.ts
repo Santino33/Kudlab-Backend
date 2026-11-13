@@ -73,6 +73,14 @@ for (const n of [0, 3]) {
 const diceConfig = kudDice.profile();
 files['kud-dice-profile.json'] = JSON.stringify({ config: diceConfig, configurationHash: hash(diceConfig) }, null, 2) + '\n';
 files['kud-dice-sequence.ts'] = await readFile('src/modules/tareas/runtime/tg07/sequence.ts', 'utf8');
+// Ship the same refinements to Play; only hashing/byte counting depend on the host platform.
+files['kud-dice-validation.ts'] = (await readFile('src/modules/tareas/runtime/tg07/contract.ts', 'utf8'))
+  .replace("import { hash } from '../contract.js';", "import fixedProfile from './kud-dice-profile.json' with { type: 'json' };\n// Remaining comparisons only concern ordered integer sequences, not evidence hashes.\nconst hash = (value: readonly number[] | undefined) => JSON.stringify(value);")
+  .replace("from './sequence.js'", "from './kud-dice-sequence.js'")
+  .replaceAll('hash(buildSequences())', 'fixedProfile.config.sequenceHash')
+  .replaceAll('hash(profile())', 'fixedProfile.configurationHash')
+  .replace('hash(context.config)', 'fixedProfile.configurationHash')
+  .replace("Buffer.byteLength(JSON.stringify(envelope), 'utf8')", 'new TextEncoder().encode(JSON.stringify(envelope)).length');
 files['context-tg07.synthetic.json'] = JSON.stringify(contextSchema.parse({ ...syntheticContext, taskId: 'TG-07', config: diceConfig,
   configurationHash: hash(diceConfig), gameBuildId: kudDice.BUILD_ID, contractVersion: kudDice.CONTRACT_VERSION }), null, 2) + '\n';
 const diceSequences = buildSequences();
