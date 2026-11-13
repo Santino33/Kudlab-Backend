@@ -124,4 +124,17 @@ describe('TG-07 strict evidence / CA-02,04,07,09', () => {
     e.incidents.push({ ...e.incidents[0]!, sequence: 2, type: 'focus_regained', atMs: 5990 });
     expect(envelopeSchema.safeParse(e).success).toBe(true);
   });
+  it('preserves the original inactivity timer race during the 250ms closing window', () => {
+    const e = envelope(), practice = e.preparation.practice[0]!.evidence;
+    const first = practice.responseOpenedAtMs! + 100;
+    practice.responses[0]!.atMs = first;
+    practice.responses[1]!.atMs = first + 7999;
+    practice.closedAtMs = first + 8000; practice.closureReason = 'timeout';
+    // Move measurement after that longer practice; its rules remain unchanged.
+    const shift = 10000;
+    for (const trial of e.events) { trial.startedAtMs += shift; trial.presentationStartMs! += shift; trial.responseOpenedAtMs! += shift; trial.closedAtMs += shift; }
+    e.timing.measurementStartedAtMs! += shift; e.timing.measurementFinishedAtMs! += shift;
+    e.timing.finishedAtMs += shift; e.timing.lastCheckpointAtMs += shift;
+    expect(envelopeSchema.safeParse(e).success).toBe(true);
+  });
 });

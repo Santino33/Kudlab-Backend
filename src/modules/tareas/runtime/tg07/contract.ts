@@ -46,8 +46,10 @@ export const trialSchema = z.strictObject({
   if (trial.closureReason === 'response' && (trial.responses.length < trial.length ||
     trial.closedAtMs < (trial.responses[trial.length - 1]?.atMs ?? trial.closedAtMs) + 250 - 0.2)) fail();
   // Extra taps in the original 250ms closing window are retained, not silently truncated.
-  if (trial.closureReason === 'timeout' && (trial.responses.length >= trial.length ||
-    trial.closedAtMs - (trial.responses.at(-1)?.atMs ?? trial.responseOpenedAtMs ?? trial.closedAtMs) < CONFIG.responseTimeoutMs - 0.2)) fail();
+  // The original leaves the last inactivity timer armed during the 250ms closing window.
+  const lastArmedAt = trial.responses[Math.min(trial.responses.length, trial.length - 1) - 1]?.atMs ?? trial.responseOpenedAtMs;
+  if (trial.closureReason === 'timeout' &&
+    trial.closedAtMs - (lastArmedAt ?? trial.closedAtMs) < CONFIG.responseTimeoutMs - 0.2) fail();
 });
 export type Trial = z.infer<typeof trialSchema>;
 export const incidentSchema = z.strictObject({ sequence: z.number().int().positive(),
@@ -123,7 +125,7 @@ export const envelopeSchema = z.strictObject({ ...reference, submissionId: uuidV
   prep.practice.forEach((round, index) => {
     const trial = round.evidence;
     if (!prep.demoShown || instruction.acceptedAtMs === null || round.round !== index + 1 || practiceCorrect || trial.length !== 2 || hash(trial.sequence) !== hash(sequences.practice[index + 1]) ||
-      trial.startedAtMs < start || trial.closedAtMs > (ms ?? end) || index > 0 && trial.startedAtMs < prep.practice[index - 1]!.evidence.closedAtMs) fail();
+      trial.startedAtMs < (instruction.acceptedAtMs ?? start) || trial.closedAtMs > (ms ?? end) || index > 0 && trial.startedAtMs < prep.practice[index - 1]!.evidence.closedAtMs) fail();
     if (trial.closureReason === 'interruption' && (ms !== null || envelope.state !== 'interrupted')) fail();
     practiceCorrect = trial.closureReason !== 'interruption' && scoreTrial(trial.sequence, trial.responses).outcome === 'correct';
   });
