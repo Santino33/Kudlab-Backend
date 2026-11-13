@@ -81,4 +81,17 @@ describe('TG-03 contract / CA-02,04,05,07,08,13', () => {
     const b = envelope(); b.preparation.practice[0]!.items[0].result = 'incorrect';
     expect(envelopeSchema.safeParse(b).success).toBe(false);
   });
+  it('returns validation failure, not a thrown exception, for excess measurement trials', () => {
+    const e = envelope();
+    e.events.push({ ...e.events[11]!, trial: 13 });
+    expect(envelopeSchema.safeParse(e).success).toBe(false);
+  });
+  it('requires the second practice round after an error, but permits errors after that round', () => {
+    const e = envelope();
+    const first = e.preparation.practice[0]!.items[0];
+    first.selectedIdx = (first.selectedIdx! + 1) % 4; first.result = 'incorrect';
+    expect(envelopeSchema.safeParse(e).success).toBe(false);
+    e.preparation.practice.push({ round: 2, items: structuredClone(e.preparation.practice[0]!.items) });
+    expect(envelopeSchema.safeParse(e).success).toBe(true);
+  });
 });

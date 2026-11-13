@@ -61,7 +61,8 @@ const practiceItem = z.strictObject({ itemId: z.enum(['P1', 'P2']), selectedIdx:
   result: z.enum(['correct', 'incorrect', 'omission']), rtMs: time.nullable() }).superRefine((trial, ctx) => {
   const item = BANK.practice.find(item => item.id === trial.itemId)!;
   if (trial.result !== (trial.selectedIdx === null ? 'omission' : trial.selectedIdx === item.correctIdx ? 'correct' : 'incorrect') ||
-    (trial.selectedIdx === null) !== (trial.rtMs === null)) ctx.addIssue({ code: 'custom', message: 'Incoherent practice' });
+    (trial.selectedIdx === null) !== (trial.rtMs === null) || trial.rtMs !== null && trial.rtMs >= 30000)
+    ctx.addIssue({ code: 'custom', message: 'Incoherent practice' });
 });
 export const preparationSchema = z.strictObject({
   instructionRepeats: z.number().int().min(0).max(1000),
@@ -70,6 +71,8 @@ export const preparationSchema = z.strictObject({
     type: z.enum(['transition_skipped', 'resource_error']), reason: z.enum(['video_error', 'timeout', 'autoplay_blocked', 'reduced_motion', 'closing_recovered']),
   })).max(1000),
 }).superRefine((preparation, ctx) => {
+  if (preparation.practice.length === 1 && preparation.practice[0]!.items.some(item => item.result !== 'correct'))
+    ctx.addIssue({ code: 'custom', message: 'Failed first practice round must be repeated' });
   preparation.practice.forEach((round, index) => {
     if (round.round !== index + 1 || round.items[0].itemId !== 'P1' || round.items[1].itemId !== 'P2' ||
       index === 1 && preparation.practice[0]!.items.every(item => item.result === 'correct'))
@@ -109,7 +112,8 @@ export const envelopeSchema = z.strictObject({ ...reference, submissionId: uuidV
   if (envelope.state === 'completed' && (envelope.events.length !== 12 || envelope.events.some(event => event.closureReason === 'interruption'))) fail();
   const sequence = buildSequence();
   envelope.events.forEach((event, index) => {
-    const entry = sequence[index]!;
+    const entry = sequence[index];
+    if (!entry) { fail(); return; }
     const item = entry.item;
     if (event.trial !== index + 1 || event.itemId !== item.id || event.load !== item.load || event.plannedBlock !== entry.plannedBlock ||
       event.start !== item.start || hash(event.ops) !== hash(item.ops) || hash(event.intermediates) !== hash(item.intermediates) || hash(event.optionValues) !== hash(item.options)) fail();
@@ -132,6 +136,6 @@ export const envelopeSchema = z.strictObject({ ...reference, submissionId: uuidV
     if (!event || response.atMs < event.startedAtMs || response.atMs > end || index > 0 && response.sequence <= envelope.extraResponses[index - 1]!.sequence) fail();
     if (response.device === 'keyboard' ? response.x !== null || response.y !== null : response.x === null || response.y === null) fail();
   });
-  if (Buffer.byteLength(JSON.stringify(envelope), 'utf8') > 1048576) fail();
+  if (envelope.incidents.length + envelope.preparation.resourceIncidents.length > 1000 || Buffer.byteLength(JSON.stringify(envelope), 'utf8') > 1048576) fail();
 });
 export type Envelope = z.infer<typeof envelopeSchema>;

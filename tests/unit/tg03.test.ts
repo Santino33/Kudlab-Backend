@@ -87,4 +87,11 @@ describe('TG03-DESCRIPTIVE-1 / CA-09,10,13', () => {
     expect(r.summary.nRt).toBe(12);
     expect(new Set(r.indicators.map(value => `${value.metricCode}:${value.scope}`)).size).toBe(r.indicators.length);
   });
+  it.each([1, 2])('requires two valid items at both extreme loads, observed %s at load one', n => {
+    const e = envelope();
+    e.events.filter(trial => trial.load === 1).forEach((trial, index) => { if (index >= n) respond(trial, 'interrupted'); });
+    const result = metric(calculate(e, true), 'delta_precision_pts');
+    expect(result.status).toBe(n === 2 ? 'CALCULATED' : 'NOT_AVAILABLE');
+    if (n === 1) expect(result.unavailabilityReason).toBe('INSUFFICIENT_LOAD_DATA');
+  });
 });
