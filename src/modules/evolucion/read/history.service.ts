@@ -8,7 +8,7 @@ import type { IndicatorHistorySession, IndicatorValueDto } from './dto.js';
 import { approvalAtCalculation, normalizeExecutionStatus } from './run-state.js';
 import { mentalistaEvidence, kudDiceEvidence } from '../../../db/schema/game.js';
 import { configSchema as mentalistaConfig } from '../../tareas/runtime/tg03/contract.js';
-import { taskIdSchema } from '../../tareas/runtime/profiles.js';
+import { taskIdSchema } from './dto.js';
 import { MENTALISTA_METRICS, MENTALISTA_SCOPES } from './mentalista-definitions.js';
 import { KUD_DICE_METRICS, KUD_DICE_SCOPES } from './kud-dice-definitions.js';
 

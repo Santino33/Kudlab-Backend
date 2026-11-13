@@ -4,6 +4,7 @@ import { taskIdSchema } from './profiles.js';
 import { configSchema as mentalistaConfig, preparationSchema } from './tg03/contract.js';
 import { configSchema as kudDiceConfig, preparationSchema as kudDicePreparation, envelopeSchema as kudDiceEnvelope } from './tg07/contract.js';
 import { KUD_DICE_METRICS, KUD_DICE_SCOPES, KUD_DICE_REASONS } from '../../evolucion/read/kud-dice-definitions.js';
+import { configSchema as palabraConfig, envelopeSchema as palabraEnvelope, preparationSchema as palabraPreparation } from './tg02/contract.js';
 export const requestInput = z.strictObject({ requestId: uuidV4 });
 export const createInput = requestInput.extend({ taskId: taskIdSchema, publishedVersionId: uuid, groupId: uuid,
   studentIds: z.array(uuid).min(1).max(1000).refine(ids => new Set(ids).size === ids.length),
@@ -41,7 +42,17 @@ export const kudDiceDetailSchema = tg01Detail.extend({ taskId: z.literal('TG-07'
   preparation: kudDicePreparation.nullable(), audio: kudDiceEnvelope.shape.audio.nullable(), phaseReached: kudDiceEnvelope.shape.phaseReached.nullable(),
   calculation: tg01Detail.shape.calculation.unwrap().extend({ ruleCode: z.literal('TG07-DESCRIPTIVE-1'), indicators: z.array(kudDiceIndicatorSchema) }).nullable(),
 });
-export const sessionDetailSchema = z.discriminatedUnion('taskId', [tg01Detail, mentalistaDetailSchema, kudDiceDetailSchema]);
+export const palabraIndicatorSchema = indicatorSchema.extend({
+  metricCode: z.enum(['accuracy_pct', 'error_rate_pct', 'omission_rate_pct', 'median_reaction_time_ms', 'mean_reaction_time_ms', 'rt_sd_ms', 'rt_cv_pct']),
+  scope: z.enum(['SESSION', 'LEVEL_1', 'LEVEL_2', 'LEVEL_3', 'SEGMENT_1', 'SEGMENT_2', 'SEGMENT_3']),
+  unavailabilityReason: z.enum(['NO_VALID_ITEMS', 'INSUFFICIENT_RT_DATA', 'METHOD_NOT_APPROVED']).nullable(),
+});
+export const palabraDetailSchema = tg01Detail.extend({ taskId: z.literal('TG-02'), configuration: palabraConfig,
+  preparation: palabraPreparation.nullable(), phaseReached: palabraEnvelope.shape.phaseReached.nullable(),
+  pauses: palabraEnvelope.shape.pauses, emptyResponses: palabraEnvelope.shape.emptyResponses,
+  calculation: tg01Detail.shape.calculation.unwrap().extend({ ruleCode: z.literal('TG02-DESCRIPTIVE-1'), indicators: z.array(palabraIndicatorSchema) }).nullable(),
+});
+export const sessionDetailSchema = z.discriminatedUnion('taskId', [tg01Detail, palabraDetailSchema, mentalistaDetailSchema, kudDiceDetailSchema]);
 export const page = (schema: z.ZodType) => z.strictObject({ items: z.array(schema), nextCursor: z.string().nullable() });
 export const codeScope = z.enum(['PLAY_AND_SUBMIT', 'SUBMIT_ONLY']);
 export const codeMetadataSchema = z.strictObject({ id: uuid, recipientId: uuid, scope: codeScope, sessionId: uuid.nullable(), status: z.enum(['ACTIVE', 'REVOKED', 'REPLACED', 'EXPIRED']), createdAt: datetime, expiresAt: datetime, lastClaimedAt: datetime.nullable(), canReveal: z.boolean(), unavailableReasons: z.array(z.string()) });

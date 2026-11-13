@@ -2,7 +2,8 @@ import { z } from 'zod';
 import { INDICATOR_METRIC_CODES, INDICATOR_SCOPES, UNAVAILABILITY_REASONS } from './definitions.js';
 import { MENTALISTA_METRICS, MENTALISTA_SCOPES, MENTALISTA_REASONS } from './mentalista-definitions.js';
 import { KUD_DICE_METRICS, KUD_DICE_SCOPES, KUD_DICE_REASONS, KUD_DICE_LENGTH_METRICS } from './kud-dice-definitions.js';
-import { taskIdSchema } from '../../tareas/runtime/profiles.js';
+// TG02 exposes session detail only; longitudinal/group comparisons are not approved.
+export const taskIdSchema = z.enum(['TG-01', 'TG-03', 'TG-07']);
 import { configSchema as mentalistaConfig, deviceSchema as mentalistaDevice, preparationSchema } from '../../tareas/runtime/tg03/contract.js';
 const metrics = [...new Set([...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS, ...KUD_DICE_METRICS])];
 const scopes = [...new Set([...INDICATOR_SCOPES, ...MENTALISTA_SCOPES, ...KUD_DICE_SCOPES])];
