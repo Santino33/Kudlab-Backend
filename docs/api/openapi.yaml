@@ -1813,6 +1813,7 @@ paths:
             enum:
               - TG-01
               - TG-03
+              - TG-07
         - name: metricCode
           in: query
           required: false
@@ -1834,6 +1835,25 @@ paths:
               - selection_position_2_count
               - selection_position_3_count
               - selection_position_4_count
+              - position_accuracy_pct
+              - longest_correct_length
+              - orderErrors
+              - intrusions
+              - repetitions
+              - omissions
+              - order_error_rate_pct
+              - valid_trials
+              - invalid_trials
+              - correct_trials
+              - total_positions
+              - trials_with_order_errors
+              - incomplete_trials
+              - early_taps
+              - median_first_tap_latency_ms
+              - mean_first_tap_latency_ms
+              - first_tap_latency_sd_ms
+              - first_tap_latency_cv_pct
+              - median_total_response_ms
         - name: scope
           in: query
           required: false
@@ -1848,6 +1868,12 @@ paths:
               - LOAD_2
               - LOAD_3
               - LOAD_4
+              - LENGTH_2
+              - LENGTH_3
+              - LENGTH_4
+              - LENGTH_5
+              - LENGTH_6
+              - LENGTH_7
         - name: from
           in: query
           required: false
@@ -1986,6 +2012,7 @@ paths:
             enum:
               - TG-01
               - TG-03
+              - TG-07
       responses:
         "200":
           description: Respuesta confirmada; no-store.
@@ -5192,11 +5219,31 @@ components:
             - selection_position_2_count
             - selection_position_3_count
             - selection_position_4_count
+            - position_accuracy_pct
+            - longest_correct_length
+            - orderErrors
+            - intrusions
+            - repetitions
+            - omissions
+            - order_error_rate_pct
+            - valid_trials
+            - invalid_trials
+            - correct_trials
+            - total_positions
+            - trials_with_order_errors
+            - incomplete_trials
+            - early_taps
+            - median_first_tap_latency_ms
+            - mean_first_tap_latency_ms
+            - first_tap_latency_sd_ms
+            - first_tap_latency_cv_pct
+            - median_total_response_ms
         taskId:
           type: string
           enum:
             - TG-01
             - TG-03
+            - TG-07
         label:
           type: string
           minLength: 1
@@ -5227,6 +5274,12 @@ components:
               - LOAD_2
               - LOAD_3
               - LOAD_4
+              - LENGTH_2
+              - LENGTH_3
+              - LENGTH_4
+              - LENGTH_5
+              - LENGTH_6
+              - LENGTH_7
         inputs:
           type: string
           minLength: 1
@@ -5248,6 +5301,9 @@ components:
               - INSUFFICIENT_LOAD_DATA
               - ZERO_BASELINE
               - LOAD_NOT_REACHED
+              - NO_VALID_TRIALS
+              - NO_CORRECT_TRIALS
+              - INSUFFICIENT_LENGTH_DATA
         exclusions:
           type: string
           minLength: 1
@@ -5325,11 +5381,31 @@ components:
                   - selection_position_2_count
                   - selection_position_3_count
                   - selection_position_4_count
+                  - position_accuracy_pct
+                  - longest_correct_length
+                  - orderErrors
+                  - intrusions
+                  - repetitions
+                  - omissions
+                  - order_error_rate_pct
+                  - valid_trials
+                  - invalid_trials
+                  - correct_trials
+                  - total_positions
+                  - trials_with_order_errors
+                  - incomplete_trials
+                  - early_taps
+                  - median_first_tap_latency_ms
+                  - mean_first_tap_latency_ms
+                  - first_tap_latency_sd_ms
+                  - first_tap_latency_cv_pct
+                  - median_total_response_ms
               taskId:
                 type: string
                 enum:
                   - TG-01
                   - TG-03
+                  - TG-07
               label:
                 type: string
                 minLength: 1
@@ -5360,6 +5436,12 @@ components:
                     - LOAD_2
                     - LOAD_3
                     - LOAD_4
+                    - LENGTH_2
+                    - LENGTH_3
+                    - LENGTH_4
+                    - LENGTH_5
+                    - LENGTH_6
+                    - LENGTH_7
               inputs:
                 type: string
                 minLength: 1
@@ -5381,6 +5463,9 @@ components:
                     - INSUFFICIENT_LOAD_DATA
                     - ZERO_BASELINE
                     - LOAD_NOT_REACHED
+                    - NO_VALID_TRIALS
+                    - NO_CORRECT_TRIALS
+                    - INSUFFICIENT_LENGTH_DATA
               exclusions:
                 type: string
                 minLength: 1
@@ -5456,6 +5541,25 @@ components:
             - selection_position_2_count
             - selection_position_3_count
             - selection_position_4_count
+            - position_accuracy_pct
+            - longest_correct_length
+            - orderErrors
+            - intrusions
+            - repetitions
+            - omissions
+            - order_error_rate_pct
+            - valid_trials
+            - invalid_trials
+            - correct_trials
+            - total_positions
+            - trials_with_order_errors
+            - incomplete_trials
+            - early_taps
+            - median_first_tap_latency_ms
+            - mean_first_tap_latency_ms
+            - first_tap_latency_sd_ms
+            - first_tap_latency_cv_pct
+            - median_total_response_ms
         scope:
           type: string
           enum:
@@ -5467,6 +5571,12 @@ components:
             - LOAD_2
             - LOAD_3
             - LOAD_4
+            - LENGTH_2
+            - LENGTH_3
+            - LENGTH_4
+            - LENGTH_5
+            - LENGTH_6
+            - LENGTH_7
         status:
           type: string
           enum:
@@ -5516,6 +5626,9 @@ components:
                 - INSUFFICIENT_LOAD_DATA
                 - ZERO_BASELINE
                 - LOAD_NOT_REACHED
+                - NO_VALID_TRIALS
+                - NO_CORRECT_TRIALS
+                - INSUFFICIENT_LENGTH_DATA
             - type: "null"
       required:
         - metricCode
@@ -5540,6 +5653,7 @@ components:
           enum:
             - TG-01
             - TG-03
+            - TG-07
         attemptNumber:
           anyOf:
             - type: integer
@@ -5667,6 +5781,25 @@ components:
                   - selection_position_2_count
                   - selection_position_3_count
                   - selection_position_4_count
+                  - position_accuracy_pct
+                  - longest_correct_length
+                  - orderErrors
+                  - intrusions
+                  - repetitions
+                  - omissions
+                  - order_error_rate_pct
+                  - valid_trials
+                  - invalid_trials
+                  - correct_trials
+                  - total_positions
+                  - trials_with_order_errors
+                  - incomplete_trials
+                  - early_taps
+                  - median_first_tap_latency_ms
+                  - mean_first_tap_latency_ms
+                  - first_tap_latency_sd_ms
+                  - first_tap_latency_cv_pct
+                  - median_total_response_ms
               scope:
                 type: string
                 enum:
@@ -5678,6 +5811,12 @@ components:
                   - LOAD_2
                   - LOAD_3
                   - LOAD_4
+                  - LENGTH_2
+                  - LENGTH_3
+                  - LENGTH_4
+                  - LENGTH_5
+                  - LENGTH_6
+                  - LENGTH_7
               status:
                 type: string
                 enum:
@@ -5727,6 +5866,9 @@ components:
                       - INSUFFICIENT_LOAD_DATA
                       - ZERO_BASELINE
                       - LOAD_NOT_REACHED
+                      - NO_VALID_TRIALS
+                      - NO_CORRECT_TRIALS
+                      - INSUFFICIENT_LENGTH_DATA
                   - type: "null"
             required:
               - metricCode
@@ -6197,6 +6339,7 @@ components:
                 enum:
                   - TG-01
                   - TG-03
+                  - TG-07
               attemptNumber:
                 anyOf:
                   - type: integer
@@ -6324,6 +6467,25 @@ components:
                         - selection_position_2_count
                         - selection_position_3_count
                         - selection_position_4_count
+                        - position_accuracy_pct
+                        - longest_correct_length
+                        - orderErrors
+                        - intrusions
+                        - repetitions
+                        - omissions
+                        - order_error_rate_pct
+                        - valid_trials
+                        - invalid_trials
+                        - correct_trials
+                        - total_positions
+                        - trials_with_order_errors
+                        - incomplete_trials
+                        - early_taps
+                        - median_first_tap_latency_ms
+                        - mean_first_tap_latency_ms
+                        - first_tap_latency_sd_ms
+                        - first_tap_latency_cv_pct
+                        - median_total_response_ms
                     scope:
                       type: string
                       enum:
@@ -6335,6 +6497,12 @@ components:
                         - LOAD_2
                         - LOAD_3
                         - LOAD_4
+                        - LENGTH_2
+                        - LENGTH_3
+                        - LENGTH_4
+                        - LENGTH_5
+                        - LENGTH_6
+                        - LENGTH_7
                     status:
                       type: string
                       enum:
@@ -6384,6 +6552,9 @@ components:
                             - INSUFFICIENT_LOAD_DATA
                             - ZERO_BASELINE
                             - LOAD_NOT_REACHED
+                            - NO_VALID_TRIALS
+                            - NO_CORRECT_TRIALS
+                            - INSUFFICIENT_LENGTH_DATA
                         - type: "null"
                   required:
                     - metricCode
@@ -7868,6 +8039,72 @@ components:
             - bankHash
             - sequenceHash
           additionalProperties: false
+        - type: object
+          properties:
+            profile:
+              type: string
+              const: TG07_KUD_DICE_V1
+            seed:
+              type: number
+              const: 20263
+            startLength:
+              type: number
+              const: 2
+            maxLength:
+              type: number
+              const: 7
+            trialsPerLength:
+              type: number
+              const: 2
+            reservePerLength:
+              type: number
+              const: 1
+            stimOnMs:
+              type: number
+              const: 600
+            stimOffMs:
+              type: number
+              const: 300
+            preSequenceMs:
+              type: number
+              const: 900
+            responseTimeoutMs:
+              type: number
+              const: 8000
+            minRtForStats:
+              type: number
+              const: 3
+            practice:
+              type: object
+              properties:
+                length:
+                  type: number
+                  const: 2
+                maxRounds:
+                  type: number
+                  const: 2
+              required:
+                - length
+                - maxRounds
+              additionalProperties: false
+            sequenceHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+          required:
+            - profile
+            - seed
+            - startLength
+            - maxLength
+            - trialsPerLength
+            - reservePerLength
+            - stimOnMs
+            - stimOffMs
+            - preSequenceMs
+            - responseTimeoutMs
+            - minRtForStats
+            - practice
+            - sequenceHash
+          additionalProperties: false
     RuntimeContext:
       anyOf:
         - type: object
@@ -8413,6 +8650,156 @@ components:
                 - layoutRule
                 - bank
                 - bankHash
+                - sequenceHash
+              additionalProperties: false
+            executionStatus:
+              type: string
+              enum:
+                - READY
+                - RUNNING
+                - COMPLETED
+                - INTERRUPTED
+                - EXPIRED
+                - UNCONFIRMED
+            attemptNumber:
+              anyOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 10
+                - type: "null"
+            startAllowedUntil:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            uploadAllowedUntil:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            serverTime:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            capabilities:
+              type: object
+              properties:
+                canStart:
+                  type: boolean
+                canSubmit:
+                  type: boolean
+                canReadReceipt:
+                  type: boolean
+              required:
+                - canStart
+                - canSubmit
+                - canReadReceipt
+              additionalProperties: false
+          required:
+            - sessionId
+            - taskId
+            - publishedVersionId
+            - configVersion
+            - configurationHash
+            - gameBuildId
+            - contractVersion
+            - config
+            - executionStatus
+            - attemptNumber
+            - startAllowedUntil
+            - uploadAllowedUntil
+            - serverTime
+            - capabilities
+          additionalProperties: false
+        - type: object
+          properties:
+            sessionId:
+              type: string
+              pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+            taskId:
+              type: string
+              const: TG-07
+            publishedVersionId:
+              type: string
+              pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            gameBuildId:
+              type: string
+              const: tg07-kud-dice-1
+            contractVersion:
+              type: string
+              const: "2.0"
+            config:
+              type: object
+              properties:
+                profile:
+                  type: string
+                  const: TG07_KUD_DICE_V1
+                seed:
+                  type: number
+                  const: 20263
+                startLength:
+                  type: number
+                  const: 2
+                maxLength:
+                  type: number
+                  const: 7
+                trialsPerLength:
+                  type: number
+                  const: 2
+                reservePerLength:
+                  type: number
+                  const: 1
+                stimOnMs:
+                  type: number
+                  const: 600
+                stimOffMs:
+                  type: number
+                  const: 300
+                preSequenceMs:
+                  type: number
+                  const: 900
+                responseTimeoutMs:
+                  type: number
+                  const: 8000
+                minRtForStats:
+                  type: number
+                  const: 3
+                practice:
+                  type: object
+                  properties:
+                    length:
+                      type: number
+                      const: 2
+                    maxRounds:
+                      type: number
+                      const: 2
+                  required:
+                    - length
+                    - maxRounds
+                  additionalProperties: false
+                sequenceHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+              required:
+                - profile
+                - seed
+                - startLength
+                - maxLength
+                - trialsPerLength
+                - reservePerLength
+                - stimOnMs
+                - stimOffMs
+                - preSequenceMs
+                - responseTimeoutMs
+                - minRtForStats
+                - practice
                 - sequenceHash
               additionalProperties: false
             executionStatus:
@@ -9258,6 +9645,575 @@ components:
             - incidents
             - extraResponses
           additionalProperties: false
+        - type: object
+          properties:
+            sessionId:
+              type: string
+              pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+            taskId:
+              type: string
+              const: TG-07
+            publishedVersionId:
+              type: string
+              pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            gameBuildId:
+              type: string
+              const: tg07-kud-dice-1
+            contractVersion:
+              type: string
+              const: "2.0"
+            submissionId:
+              type: string
+              pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-4[a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+            state:
+              type: string
+              enum:
+                - completed
+                - interrupted
+            terminationReason:
+              type: string
+              enum:
+                - invalid_trials
+                - all_trials_incorrect_at_length
+                - max_length_reached
+                - user_exit
+                - recovered_after_reload
+                - storage_failure
+                - evidence_limit
+                - script_error
+            phaseReached:
+              type: string
+              enum:
+                - loading
+                - intro
+                - transition
+                - practice
+                - test
+                - done
+            clock:
+              type: object
+              properties:
+                id:
+                  type: string
+                  pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+                timeOriginUnixMs:
+                  type: number
+                  minimum: 0
+              required:
+                - id
+                - timeOriginUnixMs
+              additionalProperties: false
+            timing:
+              type: object
+              properties:
+                startedAtMs:
+                  type: number
+                  minimum: 0
+                finishedAtMs:
+                  type: number
+                  minimum: 0
+                lastCheckpointAtMs:
+                  type: number
+                  minimum: 0
+                measurementStartedAtMs:
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
+                measurementFinishedAtMs:
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
+              required:
+                - startedAtMs
+                - finishedAtMs
+                - lastCheckpointAtMs
+                - measurementStartedAtMs
+                - measurementFinishedAtMs
+              additionalProperties: false
+            device:
+              type: object
+              properties:
+                viewportWidth:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+                viewportHeight:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+                stageWidthCss:
+                  type: number
+                  minimum: 0
+                stageHeightCss:
+                  type: number
+                  minimum: 0
+                devicePixelRatio:
+                  type: number
+                  exclusiveMinimum: 0
+                touchCapable:
+                  type: boolean
+                pointerTypes:
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - mouse
+                      - touch
+                      - pen
+              required:
+                - viewportWidth
+                - viewportHeight
+                - stageWidthCss
+                - stageHeightCss
+                - devicePixelRatio
+                - touchCapable
+                - pointerTypes
+              additionalProperties: false
+            audio:
+              type: object
+              properties:
+                source:
+                  anyOf:
+                    - type: string
+                      enum:
+                        - files
+                        - synth
+                        - mixed
+                        - none
+                    - type: "null"
+                missingFiles:
+                  maxItems: 4
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - do.mp3
+                      - re.mp3
+                      - mi.mp3
+                      - fa.mp3
+              required:
+                - source
+                - missingFiles
+              additionalProperties: false
+            preparation:
+              type: object
+              properties:
+                instruction:
+                  type: object
+                  properties:
+                    shownAtMs:
+                      anyOf:
+                        - type: number
+                          minimum: 0
+                        - type: "null"
+                    acceptedAtMs:
+                      anyOf:
+                        - type: number
+                          minimum: 0
+                        - type: "null"
+                    repeats:
+                      type: integer
+                      minimum: 0
+                      maximum: 1000
+                  required:
+                    - shownAtMs
+                    - acceptedAtMs
+                    - repeats
+                  additionalProperties: false
+                demoShown:
+                  type: boolean
+                practiceCompleted:
+                  type: boolean
+                practice:
+                  maxItems: 2
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      round:
+                        type: integer
+                        minimum: 1
+                        maximum: 2
+                      evidence:
+                        type: object
+                        properties:
+                          trial:
+                            type: integer
+                            minimum: 1
+                            maximum: 18
+                          length:
+                            type: integer
+                            minimum: 2
+                            maximum: 7
+                          sequence:
+                            minItems: 2
+                            maxItems: 7
+                            type: array
+                            items:
+                              type: integer
+                              minimum: 0
+                              maximum: 3
+                          sequenceIndex:
+                            type: integer
+                            minimum: 0
+                            maximum: 2
+                          attemptAtLength:
+                            type: integer
+                            minimum: 1
+                            maximum: 2
+                          isReplacement:
+                            type: boolean
+                          startedAtMs:
+                            type: number
+                            minimum: 0
+                          presentationStartMs:
+                            anyOf:
+                              - type: number
+                                minimum: 0
+                              - type: "null"
+                          responseOpenedAtMs:
+                            anyOf:
+                              - type: number
+                                minimum: 0
+                              - type: "null"
+                          closedAtMs:
+                            type: number
+                            minimum: 0
+                          responses:
+                            maxItems: 1000
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                drum:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 3
+                                atMs:
+                                  type: number
+                                  minimum: 0
+                                pointerType:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - mouse
+                                        - touch
+                                        - pen
+                                    - type: "null"
+                              required:
+                                - drum
+                                - atMs
+                                - pointerType
+                              additionalProperties: false
+                          earlyTaps:
+                            maxItems: 1000
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                drum:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 3
+                                atMs:
+                                  type: number
+                                  minimum: 0
+                                pointerType:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - mouse
+                                        - touch
+                                        - pen
+                                    - type: "null"
+                              required:
+                                - drum
+                                - atMs
+                                - pointerType
+                              additionalProperties: false
+                          valid:
+                            type: boolean
+                          invalidReason:
+                            anyOf:
+                              - type: string
+                                enum:
+                                  - tab_hidden
+                                  - focus_lost
+                                  - interrupted
+                                  - storage_failure
+                                  - evidence_limit
+                              - type: "null"
+                          closureReason:
+                            type: string
+                            enum:
+                              - response
+                              - timeout
+                              - interruption
+                        required:
+                          - trial
+                          - length
+                          - sequence
+                          - sequenceIndex
+                          - attemptAtLength
+                          - isReplacement
+                          - startedAtMs
+                          - presentationStartMs
+                          - responseOpenedAtMs
+                          - closedAtMs
+                          - responses
+                          - earlyTaps
+                          - valid
+                          - invalidReason
+                          - closureReason
+                        additionalProperties: false
+                    required:
+                      - round
+                      - evidence
+                    additionalProperties: false
+              required:
+                - instruction
+                - demoShown
+                - practiceCompleted
+                - practice
+              additionalProperties: false
+            events:
+              maxItems: 18
+              type: array
+              items:
+                type: object
+                properties:
+                  trial:
+                    type: integer
+                    minimum: 1
+                    maximum: 18
+                  length:
+                    type: integer
+                    minimum: 2
+                    maximum: 7
+                  sequence:
+                    minItems: 2
+                    maxItems: 7
+                    type: array
+                    items:
+                      type: integer
+                      minimum: 0
+                      maximum: 3
+                  sequenceIndex:
+                    type: integer
+                    minimum: 0
+                    maximum: 2
+                  attemptAtLength:
+                    type: integer
+                    minimum: 1
+                    maximum: 2
+                  isReplacement:
+                    type: boolean
+                  startedAtMs:
+                    type: number
+                    minimum: 0
+                  presentationStartMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  responseOpenedAtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  closedAtMs:
+                    type: number
+                    minimum: 0
+                  responses:
+                    maxItems: 1000
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        drum:
+                          type: integer
+                          minimum: 0
+                          maximum: 3
+                        atMs:
+                          type: number
+                          minimum: 0
+                        pointerType:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - mouse
+                                - touch
+                                - pen
+                            - type: "null"
+                      required:
+                        - drum
+                        - atMs
+                        - pointerType
+                      additionalProperties: false
+                  earlyTaps:
+                    maxItems: 1000
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        drum:
+                          type: integer
+                          minimum: 0
+                          maximum: 3
+                        atMs:
+                          type: number
+                          minimum: 0
+                        pointerType:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - mouse
+                                - touch
+                                - pen
+                            - type: "null"
+                      required:
+                        - drum
+                        - atMs
+                        - pointerType
+                      additionalProperties: false
+                  valid:
+                    type: boolean
+                  invalidReason:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - tab_hidden
+                          - focus_lost
+                          - interrupted
+                          - storage_failure
+                          - evidence_limit
+                      - type: "null"
+                  closureReason:
+                    type: string
+                    enum:
+                      - response
+                      - timeout
+                      - interruption
+                required:
+                  - trial
+                  - length
+                  - sequence
+                  - sequenceIndex
+                  - attemptAtLength
+                  - isReplacement
+                  - startedAtMs
+                  - presentationStartMs
+                  - responseOpenedAtMs
+                  - closedAtMs
+                  - responses
+                  - earlyTaps
+                  - valid
+                  - invalidReason
+                  - closureReason
+                additionalProperties: false
+            incidents:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  sequence:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  type:
+                    type: string
+                    enum:
+                      - tab_hidden
+                      - tab_visible
+                      - loss_of_focus
+                      - focus_regained
+                      - script_error
+                      - resource_load_error
+                      - audio_play_failed
+                      - small_stage
+                      - transition_skipped
+                      - transition_back_skipped
+                      - network_lost
+                      - network_restored
+                      - storage_failure
+                      - recovered_after_reload
+                      - evidence_limit
+                  phase:
+                    type: string
+                    enum:
+                      - loading
+                      - intro
+                      - transition
+                      - practice
+                      - test
+                      - done
+                  clockId:
+                    anyOf:
+                      - type: string
+                        pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+                      - type: "null"
+                  atMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  recordedAtClient:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  durationMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  detail:
+                    anyOf:
+                      - type: string
+                        maxLength: 300
+                      - type: "null"
+                required:
+                  - sequence
+                  - type
+                  - phase
+                  - clockId
+                  - atMs
+                  - recordedAtClient
+                  - durationMs
+                  - detail
+                additionalProperties: false
+          required:
+            - sessionId
+            - taskId
+            - publishedVersionId
+            - configVersion
+            - configurationHash
+            - gameBuildId
+            - contractVersion
+            - submissionId
+            - state
+            - terminationReason
+            - phaseReached
+            - clock
+            - timing
+            - device
+            - audio
+            - preparation
+            - events
+            - incidents
+          additionalProperties: false
     EvidenceReceipt:
       type: object
       properties:
@@ -9327,6 +10283,7 @@ components:
           enum:
             - TG-01
             - TG-03
+            - TG-07
         title:
           type: string
           minLength: 1
@@ -9447,6 +10404,7 @@ components:
           enum:
             - TG-01
             - TG-03
+            - TG-07
         title:
           type: string
           minLength: 1
@@ -9523,6 +10481,7 @@ components:
                 enum:
                   - TG-01
                   - TG-03
+                  - TG-07
               title:
                 type: string
                 minLength: 1
@@ -9602,6 +10561,7 @@ components:
           enum:
             - TG-01
             - TG-03
+            - TG-07
         publishedVersionId:
           type: string
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
@@ -9686,6 +10646,7 @@ components:
           enum:
             - TG-01
             - TG-03
+            - TG-07
         assignmentId:
           type: string
           pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
@@ -10890,6 +11851,592 @@ components:
             - preparation
             - extraResponseCount
           additionalProperties: false
+        - type: object
+          properties:
+            id:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            studentId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            taskId:
+              type: string
+              const: TG-07
+            assignmentId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            attemptNumber:
+              anyOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 10
+                - type: "null"
+            launchMode:
+              type: string
+              enum:
+                - SUPERVISED
+                - CODE
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            gameBuildId:
+              type: string
+            executionStatus:
+              type: string
+              enum:
+                - READY
+                - RUNNING
+                - COMPLETED
+                - INTERRUPTED
+                - EXPIRED
+                - UNCONFIRMED
+            processingStatus:
+              type: string
+              enum:
+                - NOT_RECEIVED
+                - PENDING
+                - PROCESSING
+                - COMPLETED
+                - FAILED
+            preparedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            startedAtServer:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            receivedAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            incidentCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            recordedTrialCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            publishedVersionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            configuration:
+              type: object
+              properties:
+                profile:
+                  type: string
+                  const: TG07_KUD_DICE_V1
+                seed:
+                  type: number
+                  const: 20263
+                startLength:
+                  type: number
+                  const: 2
+                maxLength:
+                  type: number
+                  const: 7
+                trialsPerLength:
+                  type: number
+                  const: 2
+                reservePerLength:
+                  type: number
+                  const: 1
+                stimOnMs:
+                  type: number
+                  const: 600
+                stimOffMs:
+                  type: number
+                  const: 300
+                preSequenceMs:
+                  type: number
+                  const: 900
+                responseTimeoutMs:
+                  type: number
+                  const: 8000
+                minRtForStats:
+                  type: number
+                  const: 3
+                practice:
+                  type: object
+                  properties:
+                    length:
+                      type: number
+                      const: 2
+                    maxRounds:
+                      type: number
+                      const: 2
+                  required:
+                    - length
+                    - maxRounds
+                  additionalProperties: false
+                sequenceHash:
+                  type: string
+                  pattern: ^[a-f0-9]{64}$
+              required:
+                - profile
+                - seed
+                - startLength
+                - maxLength
+                - trialsPerLength
+                - reservePerLength
+                - stimOnMs
+                - stimOffMs
+                - preSequenceMs
+                - responseTimeoutMs
+                - minRtForStats
+                - practice
+                - sequenceHash
+              additionalProperties: false
+            declaredState:
+              anyOf:
+                - type: string
+                  enum:
+                    - completed
+                    - interrupted
+                - type: "null"
+            terminationReason:
+              anyOf:
+                - type: string
+                - type: "null"
+            measuredDurationMs:
+              anyOf:
+                - type: number
+                  minimum: 0
+                - type: "null"
+            device:
+              anyOf:
+                - type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                - type: "null"
+            receipt:
+              anyOf:
+                - type: object
+                  properties:
+                    receiptId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    sessionId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    submissionId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    receivedAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                    evidenceHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    processingStatusAtReceipt:
+                      type: string
+                      const: PENDING
+                  required:
+                    - receiptId
+                    - sessionId
+                    - submissionId
+                    - receivedAt
+                    - evidenceHash
+                    - processingStatusAtReceipt
+                  additionalProperties: false
+                - type: "null"
+            calculation:
+              anyOf:
+                - type: object
+                  properties:
+                    runId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    ruleCode:
+                      type: string
+                      const: TG07-DESCRIPTIVE-1
+                    ruleVersion:
+                      type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    status:
+                      type: string
+                      enum:
+                        - PENDING
+                        - PROCESSING
+                        - SUCCEEDED
+                        - FAILED
+                    calculatedAt:
+                      anyOf:
+                        - type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        - type: "null"
+                    summary:
+                      type: object
+                      propertyNames:
+                        type: string
+                      additionalProperties: {}
+                    indicators:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          metricCode:
+                            type: string
+                            enum:
+                              - accuracy_pct
+                              - position_accuracy_pct
+                              - delta_precision_pts
+                              - longest_correct_length
+                              - orderErrors
+                              - intrusions
+                              - repetitions
+                              - omissions
+                              - order_error_rate_pct
+                              - valid_trials
+                              - invalid_trials
+                              - correct_trials
+                              - total_positions
+                              - trials_with_order_errors
+                              - incomplete_trials
+                              - early_taps
+                              - median_first_tap_latency_ms
+                              - mean_first_tap_latency_ms
+                              - first_tap_latency_sd_ms
+                              - first_tap_latency_cv_pct
+                              - median_total_response_ms
+                          scope:
+                            type: string
+                            enum:
+                              - SESSION
+                              - LENGTH_2
+                              - LENGTH_3
+                              - LENGTH_4
+                              - LENGTH_5
+                              - LENGTH_6
+                              - LENGTH_7
+                          status:
+                            type: string
+                            enum:
+                              - CALCULATED
+                              - NOT_AVAILABLE
+                          value:
+                            anyOf:
+                              - type: number
+                              - type: "null"
+                          unit:
+                            type: string
+                            enum:
+                              - "%"
+                              - ms
+                              - points
+                              - count
+                          numerator:
+                            anyOf:
+                              - type: integer
+                                minimum: 0
+                                maximum: 9007199254740991
+                              - type: "null"
+                          denominator:
+                            anyOf:
+                              - type: integer
+                                minimum: 0
+                                maximum: 9007199254740991
+                              - type: "null"
+                          sampleSize:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          unavailabilityReason:
+                            anyOf:
+                              - type: string
+                                enum:
+                                  - NO_VALID_TRIALS
+                                  - NO_CORRECT_TRIALS
+                                  - INSUFFICIENT_LENGTH_DATA
+                                  - INSUFFICIENT_RT_DATA
+                                  - ZERO_MEAN_RT
+                                  - METHOD_NOT_APPROVED
+                              - type: "null"
+                        required:
+                          - metricCode
+                          - scope
+                          - status
+                          - value
+                          - unit
+                          - numerator
+                          - denominator
+                          - sampleSize
+                          - unavailabilityReason
+                        additionalProperties: false
+                  required:
+                    - runId
+                    - ruleCode
+                    - ruleVersion
+                    - status
+                    - calculatedAt
+                    - summary
+                    - indicators
+                  additionalProperties: false
+                - type: "null"
+            preparation:
+              anyOf:
+                - type: object
+                  properties:
+                    instruction:
+                      type: object
+                      properties:
+                        shownAtMs:
+                          anyOf:
+                            - type: number
+                              minimum: 0
+                            - type: "null"
+                        acceptedAtMs:
+                          anyOf:
+                            - type: number
+                              minimum: 0
+                            - type: "null"
+                        repeats:
+                          type: integer
+                          minimum: 0
+                          maximum: 1000
+                      required:
+                        - shownAtMs
+                        - acceptedAtMs
+                        - repeats
+                      additionalProperties: false
+                    demoShown:
+                      type: boolean
+                    practiceCompleted:
+                      type: boolean
+                    practice:
+                      maxItems: 2
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          round:
+                            type: integer
+                            minimum: 1
+                            maximum: 2
+                          evidence:
+                            type: object
+                            properties:
+                              trial:
+                                type: integer
+                                minimum: 1
+                                maximum: 18
+                              length:
+                                type: integer
+                                minimum: 2
+                                maximum: 7
+                              sequence:
+                                minItems: 2
+                                maxItems: 7
+                                type: array
+                                items:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 3
+                              sequenceIndex:
+                                type: integer
+                                minimum: 0
+                                maximum: 2
+                              attemptAtLength:
+                                type: integer
+                                minimum: 1
+                                maximum: 2
+                              isReplacement:
+                                type: boolean
+                              startedAtMs:
+                                type: number
+                                minimum: 0
+                              presentationStartMs:
+                                anyOf:
+                                  - type: number
+                                    minimum: 0
+                                  - type: "null"
+                              responseOpenedAtMs:
+                                anyOf:
+                                  - type: number
+                                    minimum: 0
+                                  - type: "null"
+                              closedAtMs:
+                                type: number
+                                minimum: 0
+                              responses:
+                                maxItems: 1000
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    drum:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 3
+                                    atMs:
+                                      type: number
+                                      minimum: 0
+                                    pointerType:
+                                      anyOf:
+                                        - type: string
+                                          enum:
+                                            - mouse
+                                            - touch
+                                            - pen
+                                        - type: "null"
+                                  required:
+                                    - drum
+                                    - atMs
+                                    - pointerType
+                                  additionalProperties: false
+                              earlyTaps:
+                                maxItems: 1000
+                                type: array
+                                items:
+                                  type: object
+                                  properties:
+                                    drum:
+                                      type: integer
+                                      minimum: 0
+                                      maximum: 3
+                                    atMs:
+                                      type: number
+                                      minimum: 0
+                                    pointerType:
+                                      anyOf:
+                                        - type: string
+                                          enum:
+                                            - mouse
+                                            - touch
+                                            - pen
+                                        - type: "null"
+                                  required:
+                                    - drum
+                                    - atMs
+                                    - pointerType
+                                  additionalProperties: false
+                              valid:
+                                type: boolean
+                              invalidReason:
+                                anyOf:
+                                  - type: string
+                                    enum:
+                                      - tab_hidden
+                                      - focus_lost
+                                      - interrupted
+                                      - storage_failure
+                                      - evidence_limit
+                                  - type: "null"
+                              closureReason:
+                                type: string
+                                enum:
+                                  - response
+                                  - timeout
+                                  - interruption
+                            required:
+                              - trial
+                              - length
+                              - sequence
+                              - sequenceIndex
+                              - attemptAtLength
+                              - isReplacement
+                              - startedAtMs
+                              - presentationStartMs
+                              - responseOpenedAtMs
+                              - closedAtMs
+                              - responses
+                              - earlyTaps
+                              - valid
+                              - invalidReason
+                              - closureReason
+                            additionalProperties: false
+                        required:
+                          - round
+                          - evidence
+                        additionalProperties: false
+                  required:
+                    - instruction
+                    - demoShown
+                    - practiceCompleted
+                    - practice
+                  additionalProperties: false
+                - type: "null"
+            audio:
+              anyOf:
+                - type: object
+                  properties:
+                    source:
+                      anyOf:
+                        - type: string
+                          enum:
+                            - files
+                            - synth
+                            - mixed
+                            - none
+                        - type: "null"
+                    missingFiles:
+                      maxItems: 4
+                      type: array
+                      items:
+                        type: string
+                        enum:
+                          - do.mp3
+                          - re.mp3
+                          - mi.mp3
+                          - fa.mp3
+                  required:
+                    - source
+                    - missingFiles
+                  additionalProperties: false
+                - type: "null"
+            phaseReached:
+              anyOf:
+                - type: string
+                  enum:
+                    - loading
+                    - intro
+                    - transition
+                    - practice
+                    - test
+                    - done
+                - type: "null"
+          required:
+            - id
+            - studentId
+            - taskId
+            - assignmentId
+            - attemptNumber
+            - launchMode
+            - configVersion
+            - gameBuildId
+            - executionStatus
+            - processingStatus
+            - preparedAt
+            - startedAtServer
+            - receivedAt
+            - incidentCount
+            - recordedTrialCount
+            - publishedVersionId
+            - configurationHash
+            - configuration
+            - declaredState
+            - terminationReason
+            - measuredDurationMs
+            - device
+            - receipt
+            - calculation
+            - preparation
+            - audio
+            - phaseReached
+          additionalProperties: false
     SessionPage:
       type: object
       properties:
@@ -10909,6 +12456,7 @@ components:
                 enum:
                   - TG-01
                   - TG-03
+                  - TG-07
               assignmentId:
                 type: string
                 pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
@@ -11256,6 +12804,139 @@ components:
                 additionalProperties: false
               - type: object
                 properties:
+                  trial:
+                    type: integer
+                    minimum: 1
+                    maximum: 18
+                  length:
+                    type: integer
+                    minimum: 2
+                    maximum: 7
+                  sequence:
+                    minItems: 2
+                    maxItems: 7
+                    type: array
+                    items:
+                      type: integer
+                      minimum: 0
+                      maximum: 3
+                  sequenceIndex:
+                    type: integer
+                    minimum: 0
+                    maximum: 2
+                  attemptAtLength:
+                    type: integer
+                    minimum: 1
+                    maximum: 2
+                  isReplacement:
+                    type: boolean
+                  startedAtMs:
+                    type: number
+                    minimum: 0
+                  presentationStartMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  responseOpenedAtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  closedAtMs:
+                    type: number
+                    minimum: 0
+                  responses:
+                    maxItems: 1000
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        drum:
+                          type: integer
+                          minimum: 0
+                          maximum: 3
+                        atMs:
+                          type: number
+                          minimum: 0
+                        pointerType:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - mouse
+                                - touch
+                                - pen
+                            - type: "null"
+                      required:
+                        - drum
+                        - atMs
+                        - pointerType
+                      additionalProperties: false
+                  earlyTaps:
+                    maxItems: 1000
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        drum:
+                          type: integer
+                          minimum: 0
+                          maximum: 3
+                        atMs:
+                          type: number
+                          minimum: 0
+                        pointerType:
+                          anyOf:
+                            - type: string
+                              enum:
+                                - mouse
+                                - touch
+                                - pen
+                            - type: "null"
+                      required:
+                        - drum
+                        - atMs
+                        - pointerType
+                      additionalProperties: false
+                  valid:
+                    type: boolean
+                  invalidReason:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - tab_hidden
+                          - focus_lost
+                          - interrupted
+                          - storage_failure
+                          - evidence_limit
+                      - type: "null"
+                  closureReason:
+                    type: string
+                    enum:
+                      - response
+                      - timeout
+                      - interruption
+                  calculationDecision: {}
+                required:
+                  - trial
+                  - length
+                  - sequence
+                  - sequenceIndex
+                  - attemptAtLength
+                  - isReplacement
+                  - startedAtMs
+                  - presentationStartMs
+                  - responseOpenedAtMs
+                  - closedAtMs
+                  - responses
+                  - earlyTaps
+                  - valid
+                  - invalidReason
+                  - closureReason
+                  - calculationDecision
+                additionalProperties: false
+              - type: object
+                properties:
                   sequence:
                     type: integer
                     exclusiveMinimum: 0
@@ -11310,6 +12991,75 @@ components:
                   - endedAtMs
                   - recordedAtClient
                   - category
+                additionalProperties: false
+              - type: object
+                properties:
+                  sequence:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  type:
+                    type: string
+                    enum:
+                      - tab_hidden
+                      - tab_visible
+                      - loss_of_focus
+                      - focus_regained
+                      - script_error
+                      - resource_load_error
+                      - audio_play_failed
+                      - small_stage
+                      - transition_skipped
+                      - transition_back_skipped
+                      - network_lost
+                      - network_restored
+                      - storage_failure
+                      - recovered_after_reload
+                      - evidence_limit
+                  phase:
+                    type: string
+                    enum:
+                      - loading
+                      - intro
+                      - transition
+                      - practice
+                      - test
+                      - done
+                  clockId:
+                    anyOf:
+                      - type: string
+                        pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+                      - type: "null"
+                  atMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  recordedAtClient:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  durationMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  detail:
+                    anyOf:
+                      - type: string
+                        maxLength: 300
+                      - type: "null"
+                required:
+                  - sequence
+                  - type
+                  - phase
+                  - clockId
+                  - atMs
+                  - recordedAtClient
+                  - durationMs
+                  - detail
                 additionalProperties: false
         nextCursor:
           anyOf:
@@ -11709,6 +13459,7 @@ components:
                 enum:
                   - TG-01
                   - TG-03
+                  - TG-07
               title:
                 type: string
                 minLength: 1

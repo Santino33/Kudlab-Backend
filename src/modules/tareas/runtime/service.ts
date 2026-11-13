@@ -13,7 +13,7 @@ import { hasActiveIdentity } from '../../usuarios/shared/accounts.types.js';
 import { notFound } from '../../academico/shared/academic.errors.js';
 import { hash, secretDigest, uuid, uuidV4, secret } from './contract.js';
 import { compatible, envelopeSchema, supportedRule } from './profiles.js';
-import { mentalistaEvidence } from '../../../db/schema/game.js';
+import { mentalistaEvidence, kudDiceEvidence } from '../../../db/schema/game.js';
 import { GameError, conflict } from './errors.js';
 import { cursorFor, cursorPosition, decryptGrant, encryptGrant, runtimeSettings } from './security.js';
 import { requestInput, createInput } from './dto.js';
@@ -159,14 +159,17 @@ export function createGameService(deps: GameDependencies = {}) {
     const { a, c } = await sessionConfig(tx, s);
     const [counts] = s.taskId === 'TG-03'
       ? await tx.select({ n: sql<number>`jsonb_array_length(${mentalistaEvidence.envelope}->'events')` }).from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, s.id))
+      : s.taskId === 'TG-07' ? await tx.select({ n: sql<number>`jsonb_array_length(${kudDiceEvidence.envelope}->'events')` }).from(kudDiceEvidence).where(eq(kudDiceEvidence.sessionId, s.id))
       : await tx.select({ n: sql<number>`count(*)::int` }).from(rawEvents).where(eq(rawEvents.sessionId, s.id));
-    const [incidents] = await tx.select({ n: sql<number>`count(*)::int` }).from(sessionIncidents).where(eq(sessionIncidents.sessionId, s.id));
+    const [incidents] = s.taskId === 'TG-07'
+      ? await tx.select({ n: sql<number>`jsonb_array_length(${kudDiceEvidence.envelope}->'incidents')` }).from(kudDiceEvidence).where(eq(kudDiceEvidence.sessionId, s.id))
+      : await tx.select({ n: sql<number>`count(*)::int` }).from(sessionIncidents).where(eq(sessionIncidents.sessionId, s.id));
     const now = Date.now();
     const executionStatus = s.executionStatus === 'READY' && s.startAllowedUntil.getTime() <= now ? 'EXPIRED' : s.executionStatus === 'RUNNING' && s.startedAtServer!.getTime() + 1920000 <= now ? 'UNCONFIRMED' : s.executionStatus;
     return { id: s.id, studentId: s.studentId, taskId: s.taskId, assignmentId: a.id, attemptNumber: s.attemptNumber, launchMode: s.launchMode,
       configVersion: c.version.version, gameBuildId: c.config.gameBuildId, executionStatus, processingStatus: s.processingStatus,
       preparedAt: s.preparedAt.toISOString(), startedAtServer: s.startedAtServer?.toISOString() ?? null, receivedAt: s.closedReceivedAt?.toISOString() ?? null,
-      incidentCount: incidents!.n, recordedTrialCount: counts?.n ?? 0 };
+      incidentCount: incidents?.n ?? 0, recordedTrialCount: counts?.n ?? 0 };
   }
   async function currentIssuer(tx: Tx, accountId: string, groupId: string) {
     const [g] = await tx.select().from(groups).where(eq(groups.id, groupId)).for('share');
@@ -597,8 +600,9 @@ export function createGameService(deps: GameDependencies = {}) {
         const [receipt] = await tx.insert(resultReceipts).values({ sessionId: id, submissionId: e.submissionId, contractVersion: e.contractVersion, evidenceHash: fingerprint,
           producerState: e.state, terminationReason: e.terminationReason, clockId: e.clock.id, timeOriginUnixMs: e.clock.timeOriginUnixMs, ...e.timing, device: e.device }).returning();
         if (e.taskId === 'TG-03') await tx.insert(mentalistaEvidence).values({ sessionId: id, receiptId: receipt!.id, envelope: e });
+        else if (e.taskId === 'TG-07') await tx.insert(kudDiceEvidence).values({ sessionId: id, receiptId: receipt!.id, envelope: e });
         else if (e.events.length) await tx.insert(rawEvents).values(e.events.map(t => ({ sessionId: id, ...t })));
-        if (e.incidents.length) await tx.insert(sessionIncidents).values(e.incidents.map(i => ({ sessionId: id, ...i })));
+        if (e.taskId !== 'TG-07' && e.incidents.length) await tx.insert(sessionIncidents).values(e.incidents.map(i => ({ sessionId: id, ...i })));
         await tx.insert(calculationRuns).values({ sessionId: id, ruleVersionId: c.rule.id, runNumber: 1, evidenceHash: fingerprint });
         await tx.update(gameSessions).set({ executionStatus: e.state === 'completed' ? 'COMPLETED' : 'INTERRUPTED', processingStatus: 'PENDING', closedReceivedAt: receipt!.receivedAt }).where(eq(gameSessions.id, id));
         return { repeated: false, receipt: receiptDto(receipt!) };
@@ -631,10 +635,13 @@ export function createGameService(deps: GameDependencies = {}) {
           sql`case ${calculatedIndicators.scope} when 'SESSION' then 0 when 'SEGMENT_1' then 1 when 'SEGMENT_2' then 2 else 3 end`,
           sql`case ${calculatedIndicators.metricCode} when 'accuracy_pct' then 0 when 'omission_rate_pct' then 1 when 'commission_rate_pct' then 2 when 'median_reaction_time_ms' then 3 when 'rt_sd_ms' then 4 else 5 end`) : [];
         const [mentalista] = s.taskId === 'TG-03' ? await tx.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, id)) : [];
+        const [dice] = s.taskId === 'TG-07' ? await tx.select().from(kudDiceEvidence).where(eq(kudDiceEvidence.sessionId, id)) : [];
+        const timing = dice?.envelope.timing;
         return { ...await sessionSummary(tx, s), ...(s.taskId === 'TG-03' ? { preparation: mentalista?.envelope.preparation ?? null, extraResponseCount: mentalista?.envelope.extraResponses.length ?? 0 } : {}),
+          ...(s.taskId === 'TG-07' ? { preparation: dice?.envelope.preparation ?? null, audio: dice?.envelope.audio ?? null, phaseReached: dice?.envelope.phaseReached ?? null } : {}),
           publishedVersionId: c.version.id, configurationHash: c.config.configurationHash, configuration: c.config.configuration,
           declaredState: receipt?.producerState ?? null, terminationReason: receipt?.terminationReason ?? null,
-          measuredDurationMs: receipt ? receipt.finishedAtMs - receipt.startedAtMs : null, device: receipt?.device ?? null, receipt: receipt ? receiptDto(receipt) : null,
+          measuredDurationMs: s.taskId === 'TG-07' ? timing?.measurementStartedAtMs == null ? null : (timing.measurementFinishedAtMs ?? timing.lastCheckpointAtMs) - timing.measurementStartedAtMs : receipt ? receipt.finishedAtMs - receipt.startedAtMs : null, device: receipt?.device ?? null, receipt: receipt ? receiptDto(receipt) : null,
           calculation: run ? { runId: run.id, ruleCode: c.rule.code, ruleVersion: c.rule.version, status: run.status, calculatedAt: run.finishedAt?.toISOString() ?? null, summary: run.summary,
             indicators: values.map(({ id: _, runId: __, value, ...v }) => ({ ...v, value: value === null ? null : Number(value) })) } : null };
       });
@@ -645,6 +652,15 @@ export function createGameService(deps: GameDependencies = {}) {
         const position = z.number().int().nonnegative().nullable().parse(cursorPosition(paging.cursor, filter)) ?? 0;
         const [run] = s.activeCalculationRunId ? await tx.select().from(calculationRuns).where(eq(calculationRuns.id, s.activeCalculationRunId)) : [];
         const decisions = (run?.evidenceDecisions ?? []) as { trial: number; included: boolean; rtIncluded: boolean; reason: string | null }[];
+        if (s.taskId === 'TG-07') {
+          const [stored] = await tx.select().from(kudDiceEvidence).where(eq(kudDiceEvidence.sessionId, id));
+          if (kind === 'trials') {
+            const rows = (stored?.envelope.events ?? []).filter(t => t.trial > position), page = rows.slice(0, paging.limit);
+            return { items: page.map(t => ({ ...t, calculationDecision: decisions.find(d => d.trial === t.trial) ?? null })), nextCursor: rows.length > paging.limit ? cursorFor(filter, page.at(-1)!.trial) : null };
+          }
+          const rows = (stored?.envelope.incidents ?? []).filter(i => i.sequence > position), page = rows.slice(0, paging.limit);
+          return { items: page, nextCursor: rows.length > paging.limit ? cursorFor(filter, page.at(-1)!.sequence) : null };
+        }
         if (kind === 'trials') {
           if (s.taskId === 'TG-03') {
             const [stored] = await tx.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, id));

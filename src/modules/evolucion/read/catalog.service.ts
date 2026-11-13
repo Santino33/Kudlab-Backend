@@ -5,6 +5,8 @@ import { hash } from '../../tareas/runtime/contract.js';
 import { RULE } from '../tg01.js';
 import { RULE as MENTALISTA_RULE } from '../tg03.js';
 import { MENTALISTA_DEFINITIONS } from './mentalista-definitions.js';
+import { RULE as KUD_DICE_RULE } from '../tg07.js';
+import { KUD_DICE_DEFINITIONS } from './kud-dice-definitions.js';
 import { INDICATOR_DEFINITIONS } from './definitions.js';
 import type { IndicatorDefinitionDto, RuleRef } from './dto.js';
 
@@ -24,5 +26,8 @@ export async function readIndicatorCatalog(executor: Pick<typeof db, 'select'> =
   const [mentalista] = await executor.select({ approvalStatus: indicatorRules.approvalStatus, approvedAt: indicatorRules.approvedAt }).from(indicatorRules)
     .where(and(eq(indicatorRules.taskId, 'TG-03'), eq(indicatorRules.code, MENTALISTA_RULE.code), eq(indicatorRules.version, MENTALISTA_RULE.version), eq(indicatorRules.definitionHash, hash(MENTALISTA_RULE))));
   const rule: RuleRef | null = mentalista ? { code: MENTALISTA_RULE.code, version: MENTALISTA_RULE.version, approval: { current: mentalista.approvalStatus, approvedAt: mentalista.approvedAt?.toISOString() ?? null } } : null;
-  return { items: [...buildIndicatorCatalog(row), ...MENTALISTA_DEFINITIONS.map(d => ({ ...d, rule }))] };
+  const [dice] = await executor.select({ approvalStatus: indicatorRules.approvalStatus, approvedAt: indicatorRules.approvedAt }).from(indicatorRules)
+    .where(and(eq(indicatorRules.taskId, 'TG-07'), eq(indicatorRules.code, KUD_DICE_RULE.code), eq(indicatorRules.version, KUD_DICE_RULE.version), eq(indicatorRules.definitionHash, hash(KUD_DICE_RULE))));
+  const diceRule: RuleRef | null = dice ? { code: KUD_DICE_RULE.code, version: KUD_DICE_RULE.version, approval: { current: dice.approvalStatus, approvedAt: dice.approvedAt?.toISOString() ?? null } } : null;
+  return { items: [...buildIndicatorCatalog(row), ...MENTALISTA_DEFINITIONS.map(d => ({ ...d, rule })), ...KUD_DICE_DEFINITIONS.map(d => ({ ...d, rule: diceRule }))] };
 }

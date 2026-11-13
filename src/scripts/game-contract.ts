@@ -7,6 +7,9 @@ import { receiptSchema, startResponseSchema, trialSchema, incidentSchema, uuid, 
 import { configSchema, contextSchema, envelopeSchema } from '../modules/tareas/runtime/profiles.js';
 import { profile, trialSchema as mentalistaTrial, BUILD_ID, CONTRACT_VERSION } from '../modules/tareas/runtime/tg03/contract.js';
 import { buildSequence } from '../modules/tareas/runtime/tg03/bank.js';
+import * as kudDice from '../modules/tareas/runtime/tg07/contract.js';
+import { buildSequences } from '../modules/tareas/runtime/tg07/sequence.js';
+import { KUD_DICE_METRICS, KUD_DICE_SCOPES } from '../modules/evolucion/read/kud-dice-definitions.js';
 import { indicatorDefinitionSchema, indicatorDefinitionsResponseSchema, indicatorValueSchema, indicatorHistorySessionSchema, indicatorHistoryResponseSchema } from '../modules/evolucion/read/dto.js';
 import { INDICATOR_METRIC_CODES, INDICATOR_SCOPES } from '../modules/evolucion/read/definitions.js';
 import { MENTALISTA_METRICS, MENTALISTA_SCOPES } from '../modules/evolucion/read/mentalista-definitions.js';
@@ -19,7 +22,7 @@ const schemas = { GameConfig: configSchema, RuntimeContext: contextSchema, Runti
   Assignment: assignmentSchema, AssignmentSummary: assignmentSummarySchema, AssignmentPage: page(assignmentSummarySchema), AssignmentCreate: createInput,
   OperationRequest: requestInput, LaunchGrant: grantSchema, SessionSummary: sessionSummarySchema, SessionDetail: sessionDetailSchema, SessionPage: page(sessionSummarySchema),
   RecoveryRequest: requestInput.extend({ submissionId: uuidV4 }), ClaimRequest: z.strictObject({ claimId: uuidV4, runtimeSecret: secret }), StartRequest: z.strictObject({ startId: uuidV4 }),
-  EvidencePage: page(z.union([trialSchema.safeExtend({ calculationDecision: z.unknown() }), mentalistaTrial.safeExtend({ calculationDecision: z.unknown() }), incidentSchema])), ReceiptResponse: z.strictObject({ receipt: receiptSchema.nullable() }),
+  EvidencePage: page(z.union([trialSchema.safeExtend({ calculationDecision: z.unknown() }), mentalistaTrial.safeExtend({ calculationDecision: z.unknown() }), kudDice.trialSchema.safeExtend({ calculationDecision: z.unknown() }), incidentSchema, kudDice.incidentSchema])), ReceiptResponse: z.strictObject({ receipt: receiptSchema.nullable() }),
   ProcessingRetry: z.strictObject({ sessionId: uuid, runId: uuid, processingStatus: z.literal('PENDING') }),
   CodeMetadata: codeMetadataSchema, CodeBatchRequest: codeBatchInput, CodeBatch: codeBatchSchema, CodePage: page(codeMetadataSchema), CodeReveal: codeRevealSchema,
   CodeClaim: codeClaimInput, CodeRecover: codeRecoverInput, RecoveryCodeRequest: recoveryCodeInput, EmptyRequest: z.strictObject({}),
@@ -67,9 +70,44 @@ for (const n of [0, 3]) {
   files[`envelope-2.0.partial-${n}.synthetic.json`] = JSON.stringify(envelopeSchema.parse({ ...full, state: 'interrupted', terminationReason: 'user_exit',
     events: events.slice(0, n), timing: { startedAtMs: 0, finishedAtMs: end, lastCheckpointAtMs: end } }), null, 2) + '\n';
 }
-const manifest = { version: '1.3.0', contracts: ['1.0', '1.1', '2.0'], producer: 'Kudlab-backend', canonicalization: 'RFC8785', files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, sha(content)])) };
+const diceConfig = kudDice.profile();
+files['kud-dice-profile.json'] = JSON.stringify({ config: diceConfig, configurationHash: hash(diceConfig) }, null, 2) + '\n';
+files['kud-dice-sequence.ts'] = await readFile('src/modules/tareas/runtime/tg07/sequence.ts', 'utf8');
+// Ship the same refinements to Play; only hashing/byte counting depend on the host platform.
+files['kud-dice-validation.ts'] = (await readFile('src/modules/tareas/runtime/tg07/contract.ts', 'utf8'))
+  .replace("import { hash } from '../contract.js';", "import fixedProfile from './kud-dice-profile.json' with { type: 'json' };\n// Remaining comparisons only concern ordered integer sequences, not evidence hashes.\nconst hash = (value: readonly number[] | undefined) => JSON.stringify(value);")
+  .replace("from './sequence.js'", "from './kud-dice-sequence.js'")
+  .replaceAll('hash(buildSequences())', 'fixedProfile.config.sequenceHash')
+  .replaceAll('hash(profile())', 'fixedProfile.configurationHash')
+  .replace('hash(context.config)', 'fixedProfile.configurationHash')
+  .replace("Buffer.byteLength(JSON.stringify(envelope), 'utf8')", 'new TextEncoder().encode(JSON.stringify(envelope)).length');
+files['context-tg07.synthetic.json'] = JSON.stringify(contextSchema.parse({ ...syntheticContext, taskId: 'TG-07', config: diceConfig,
+  configurationHash: hash(diceConfig), gameBuildId: kudDice.BUILD_ID, contractVersion: kudDice.CONTRACT_VERSION }), null, 2) + '\n';
+const diceSequences = buildSequences();
+const diceTrial = (sequence: number[], start: number, practice = false) => {
+  const open = start + 900 + sequence.length * 900;
+  return { trial: 1, length: sequence.length, sequence, sequenceIndex: 0, attemptAtLength: 1, isReplacement: false,
+    startedAtMs: start, presentationStartMs: start + 900, responseOpenedAtMs: open, closedAtMs: practice ? open + 1250 : open + 8000,
+    responses: practice ? sequence.map((drum, i) => ({ drum, atMs: open + (i + 1) * 500, pointerType: 'mouse' })) : [],
+    earlyTaps: [], valid: true, invalidReason: null, closureReason: practice ? 'response' : 'timeout' };
+};
+const diceEvents = [diceTrial(diceSequences.byLength[2]![0]!, 6000), { ...diceTrial(diceSequences.byLength[2]![1]!, 18200), trial: 2, sequenceIndex: 1, attemptAtLength: 2 }];
+const diceEnd = diceEvents[1]!.closedAtMs + 1500;
+const diceFull = kudDice.envelopeSchema.parse({ ...reference, taskId: 'TG-07', configurationHash: hash(diceConfig), gameBuildId: kudDice.BUILD_ID,
+  submissionId: '40000000-0000-4000-8000-000000000007', state: 'completed', terminationReason: 'all_trials_incorrect_at_length', phaseReached: 'done',
+  clock: { id: '50000000-0000-4000-8000-000000000007', timeOriginUnixMs: 1794528000000 },
+  timing: { startedAtMs: 0, finishedAtMs: diceEnd, lastCheckpointAtMs: diceEnd, measurementStartedAtMs: 6000, measurementFinishedAtMs: diceEnd },
+  device: { viewportWidth: 1920, viewportHeight: 1080, stageWidthCss: 1920, stageHeightCss: 1080, devicePixelRatio: 1, touchCapable: false, pointerTypes: ['mouse'] },
+  audio: { source: 'files', missingFiles: [] }, preparation: { instruction: { shownAtMs: 10, acceptedAtMs: 20, repeats: 0 }, demoShown: true,
+    practiceCompleted: true, practice: [{ round: 1, evidence: diceTrial(diceSequences.practice[1]!, 100, true) }] }, events: diceEvents, incidents: [] });
+files['envelope-tg07.synthetic.json'] = JSON.stringify(diceFull, null, 2) + '\n';
+const dicePartial = kudDice.envelopeSchema.parse({ ...diceFull, state: 'interrupted', terminationReason: 'user_exit', phaseReached: 'intro', events: [],
+  timing: { startedAtMs: 0, finishedAtMs: 100, lastCheckpointAtMs: 100, measurementStartedAtMs: null, measurementFinishedAtMs: null },
+  preparation: { instruction: { shownAtMs: 10, acceptedAtMs: null, repeats: 0 }, demoShown: false, practiceCompleted: false, practice: [] } });
+files['envelope-tg07.partial-0.synthetic.json'] = JSON.stringify(dicePartial, null, 2) + '\n';
+const manifest = { version: '1.4.0', contracts: ['1.0', '1.1', '2.0'], producer: 'Kudlab-backend', canonicalization: 'RFC8785', files: Object.fromEntries(Object.entries(files).map(([name, content]) => [name, sha(content)])) };
 files['manifest.json'] = JSON.stringify(manifest, null, 2) + '\n';
-for (const target of ['contract/runtime-1.3.0', ...process.argv.slice(2)]) {
+for (const target of ['contract/runtime-1.4.0', ...process.argv.slice(2)]) {
   await mkdir(resolve(target), { recursive: true });
   for (const [name, body] of Object.entries(files)) await writeFile(resolve(target, name), body);
 }
@@ -116,7 +154,7 @@ for (const [method, route, operationId, summary, input, output, status] of defin
   function param(name: string, schema: unknown, required = false) { parameters.push({ name, in: 'query', required, schema }); }
   if (output.endsWith('Page')) { param('cursor', { type: 'string', maxLength: 2048 }); param('limit', { type: 'integer', minimum: 1, maximum: 100, default: 25 }); }
   if (operationId === 'listTaskAssignments') param('groupId', jsonSchema(uuid), true);
-  if (operationId === 'listStudentTaskSessions') param('taskId', { type: 'string', enum: ['TG-01', 'TG-03'] });
+  if (operationId === 'listStudentTaskSessions') param('taskId', { type: 'string', enum: ['TG-01', 'TG-03', 'TG-07'] });
   if (operationId === 'listTaskEvidence') param('kind', { type: 'string', enum: ['trials', 'incidents'] }, true);
   if (operationId === 'getEvidenceReceipt') param('submissionId', jsonSchema(uuidV4), true);
   const responses: Record<string, unknown> = { [status]: response(output) };
@@ -133,12 +171,12 @@ for (const [method, route, operationId, summary, input, output, status] of defin
 const tags = doc.toJS().tags as { name: string; description: string }[];
 const historyParams = doc.toJS().paths['/api/v1/students/{id}/indicator-history'].get.parameters as { name: string; schema: unknown }[];
 for (const p of historyParams) {
-  if (p.name === 'taskId') p.schema = { type: 'string', enum: ['TG-01', 'TG-03'] };
-  if (p.name === 'metricCode') p.schema = { type: 'string', enum: [...new Set([...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS])] };
-  if (p.name === 'scope') p.schema = { type: 'string', enum: [...new Set([...INDICATOR_SCOPES, ...MENTALISTA_SCOPES])] };
+  if (p.name === 'taskId') p.schema = { type: 'string', enum: ['TG-01', 'TG-03', 'TG-07'] };
+  if (p.name === 'metricCode') p.schema = { type: 'string', enum: [...new Set([...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS, ...KUD_DICE_METRICS])] };
+  if (p.name === 'scope') p.schema = { type: 'string', enum: [...new Set([...INDICATOR_SCOPES, ...MENTALISTA_SCOPES, ...KUD_DICE_SCOPES])] };
 }
 doc.setIn(['paths', '/api/v1/students/{id}/indicator-history', 'get', 'parameters'], historyParams);
 for (const name of ['Actividades', 'Runtime', 'Accesos']) if (!tags.some(t => t.name === name)) tags.push({ name, description: name === 'Accesos' ? 'Códigos individuales de cinco caracteres; canje público sin cookies docentes. Uso real bloqueado.' : name === 'Runtime' ? 'API restringida del juego, sin cuentas estudiantiles.' : 'Asignación supervisada y consulta individual TEACHER.' });
 doc.set('tags', tags);
 await writeFile(path, String(doc));
-console.log('Artefacto 1.3.0: sobres TG-01 1.0/1.1 y TG-03 2.0; históricos preservados.');
+console.log('Artefacto 1.4.0: sobres TG-01 1.0/1.1, TG-03 y TG-07 2.0; históricos preservados.');
