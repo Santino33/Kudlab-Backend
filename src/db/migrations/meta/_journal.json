@@ -127,6 +127,13 @@
       "when": 1794556131156,
       "tag": "0017_tg03_mentalista",
       "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1794586667283,
+      "tag": "0018_tg07_kud_dice",
+      "breakpoints": true
     }
   ]
 }

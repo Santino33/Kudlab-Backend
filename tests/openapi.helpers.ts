@@ -39,7 +39,12 @@ function validator(doc: Document, schema: any) {
   if (!cache) { cache = new Map(); compiled.set(doc, cache); }
   const actual = resolve(doc, schema);
   let check = cache.get(actual);
-  if (!check) { check = ajv.compile({ ...actual, components: doc.components }); cache.set(actual, check); }
+  if (!check) {
+    // Most generated leaves have no refs; attaching every component makes each compile traverse the whole API.
+    const needsComponents = JSON.stringify(actual).includes('"$ref"');
+    check = ajv.compile(needsComponents ? { ...actual, components: doc.components } : actual);
+    cache.set(actual, check);
+  }
   return check;
 }
 export function assertSchema(doc: Document, schema: any, value: unknown) {

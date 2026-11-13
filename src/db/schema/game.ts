@@ -6,6 +6,7 @@ import { userAccounts } from './accounts.js';
 import type { Trial, Incident } from '../../modules/tareas/runtime/contract.js';
 import type { Config, Envelope } from '../../modules/tareas/runtime/profiles.js';
 import type { Envelope as MentalistaEnvelope } from '../../modules/tareas/runtime/tg03/contract.js';
+import type { Envelope as KudDiceEnvelope } from '../../modules/tareas/runtime/tg07/contract.js';
 
 const at = (name: string) => timestamp(name, { withTimezone: true });
 export const indicatorRules = pgTable('indicator_rule_versions', {
@@ -85,6 +86,11 @@ export const mentalistaEvidence = pgTable('mentalista_session_evidence', {
   receiptId: uuid('receipt_id').notNull().unique().references(() => resultReceipts.id),
   envelope: jsonb('envelope').$type<MentalistaEnvelope>().notNull(),
 }, t => [check('mentalista_identity_check', sql`${t.envelope}->>'taskId' = 'TG-03' and ${t.envelope}->>'sessionId' = ${t.sessionId}::text and jsonb_array_length(${t.envelope}->'events') <= 12`)]);
+export const kudDiceEvidence = pgTable('kud_dice_session_evidence', {
+  sessionId: uuid('session_id').primaryKey().references(() => gameSessions.id),
+  receiptId: uuid('receipt_id').notNull().unique().references(() => resultReceipts.id),
+  envelope: jsonb('envelope').$type<KudDiceEnvelope>().notNull(),
+}, t => [check('kud_dice_identity_check', sql`${t.envelope}->>'taskId' = 'TG-07' and ${t.envelope}->>'sessionId' = ${t.sessionId}::text and jsonb_array_length(${t.envelope}->'events') <= 18`)]);
 export const rawEvents = pgTable('raw_events', {
   id: bigint('id', { mode: 'number' }).primaryKey().generatedAlwaysAsIdentity(), sessionId: uuid('session_id').notNull().references(() => gameSessions.id),
   trial: integer('trial_number').notNull(), stimulus: text('stimulus_type').$type<Trial['stimulus']>().notNull(), spawnedAtMs: doublePrecision('spawned_at_ms').notNull(),

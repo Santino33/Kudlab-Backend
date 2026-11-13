@@ -9,7 +9,7 @@ import { z } from 'zod';
 import { withAcademicAccess, type AcademicActor } from '../../academico/shared/academic-auth.js';
 import { GameError } from '../runtime/errors.js';
 
-const catalogIds = ['TG-01', 'TG-03'];
+const catalogIds = ['TG-01', 'TG-03', 'TG-07'];
 export type UnavailableReason = 'INTEGRATION_PENDING' | 'CONFIGURATION_UNPUBLISHED' | 'TASK_DISABLED' | 'CONFIGURATION_UNSUPPORTED' | 'METHODOLOGY_PENDING';
 type PublishedVersion = { id: string; version: number } | null;
 

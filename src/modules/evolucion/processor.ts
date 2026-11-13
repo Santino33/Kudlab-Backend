@@ -6,7 +6,9 @@ import { taskPublishedVersions } from '../../db/schema/tasks.js';
 import { envelopeSchema, hash } from '../tareas/runtime/contract.js';
 import { syntheticEnabled, type GameDependencies } from '../academico/shared/participation.js';
 import { calculate, RULE } from './tg01.js';
-import { mentalistaEvidence } from '../../db/schema/game.js';
+import { mentalistaEvidence, kudDiceEvidence } from '../../db/schema/game.js';
+import { envelopeSchema as kudDiceSchema } from '../tareas/runtime/tg07/contract.js';
+import { calculate as calculateKudDice } from './tg07.js';
 import { envelopeSchema as mentalistaSchema } from '../tareas/runtime/tg03/contract.js';
 import { supportedRule } from '../tareas/runtime/profiles.js';
 import { calculate as calculateMentalista } from './tg03.js';
@@ -37,8 +39,8 @@ export async function processOne(deps: GameDependencies = {}) {
     const trials = await db.select().from(rawEvents).where(eq(rawEvents.sessionId, claimed.sessionId)).orderBy(asc(rawEvents.trial));
     const incidents = await db.select().from(sessionIncidents).where(eq(sessionIncidents.sessionId, claimed.sessionId)).orderBy(asc(sessionIncidents.sequence));
     const r = row.receipt;
-    const [stored] = row.s.taskId === 'TG-03' ? await db.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, row.s.id)) : [];
-    const e = row.s.taskId === 'TG-03' ? mentalistaSchema.parse(stored?.envelope) : envelopeSchema.parse({ contractVersion: r.contractVersion, sessionId: row.s.id, submissionId: r.submissionId, taskId: row.s.taskId,
+    const [stored] = row.s.taskId === 'TG-03' ? await db.select().from(mentalistaEvidence).where(eq(mentalistaEvidence.sessionId, row.s.id)) : row.s.taskId === 'TG-07' ? await db.select().from(kudDiceEvidence).where(eq(kudDiceEvidence.sessionId, row.s.id)) : [];
+    const e = row.s.taskId === 'TG-07' ? kudDiceSchema.parse(stored?.envelope) : row.s.taskId === 'TG-03' ? mentalistaSchema.parse(stored?.envelope) : envelopeSchema.parse({ contractVersion: r.contractVersion, sessionId: row.s.id, submissionId: r.submissionId, taskId: row.s.taskId,
       publishedVersionId: row.version.id, configVersion: row.version.version, configurationHash: row.config.configurationHash, gameBuildId: row.config.gameBuildId,
       state: r.producerState, terminationReason: r.terminationReason, clock: { id: r.clockId, timeOriginUnixMs: r.timeOriginUnixMs },
       timing: { startedAtMs: r.startedAtMs, finishedAtMs: r.finishedAtMs, lastCheckpointAtMs: r.lastCheckpointAtMs }, device: r.device,
@@ -47,7 +49,7 @@ export async function processOne(deps: GameDependencies = {}) {
       e.publishedVersionId !== row.version.id || e.configurationHash !== row.config.configurationHash || hash(row.config.configuration) !== e.configurationHash ||
       e.gameBuildId !== row.config.gameBuildId || e.contractVersion !== row.config.contractVersion || stored && stored.receiptId !== r.id) throw new Error('EVIDENCE_HASH_MISMATCH');
     const allowed = row.rule.approvalStatus === 'APPROVED' || synthetic;
-    const result = e.taskId === 'TG-03' ? calculateMentalista(e, allowed) : calculate(e, allowed);
+    const result = e.taskId === 'TG-07' ? calculateKudDice(e, allowed) : e.taskId === 'TG-03' ? calculateMentalista(e, allowed) : calculate(e, allowed);
     await db.transaction(async tx => {
       const [current] = await tx.select().from(calculationRuns).where(and(eq(calculationRuns.id, claimed.id), eq(calculationRuns.leaseToken, claimed.leaseToken), eq(calculationRuns.status, 'PROCESSING'), sql`${calculationRuns.leaseUntil} > now()`)).for('update');
       if (!current) return;

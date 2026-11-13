@@ -1,10 +1,12 @@
 import { z } from 'zod';
 import { INDICATOR_METRIC_CODES, INDICATOR_SCOPES, UNAVAILABILITY_REASONS } from './definitions.js';
 import { MENTALISTA_METRICS, MENTALISTA_SCOPES, MENTALISTA_REASONS } from './mentalista-definitions.js';
+import { KUD_DICE_METRICS, KUD_DICE_SCOPES, KUD_DICE_REASONS, KUD_DICE_LENGTH_METRICS } from './kud-dice-definitions.js';
+import { taskIdSchema } from '../../tareas/runtime/profiles.js';
 import { configSchema as mentalistaConfig, deviceSchema as mentalistaDevice, preparationSchema } from '../../tareas/runtime/tg03/contract.js';
-const metrics = [...new Set([...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS])];
-const scopes = [...new Set([...INDICATOR_SCOPES, ...MENTALISTA_SCOPES])];
-const reasons = [...new Set([...UNAVAILABILITY_REASONS, ...MENTALISTA_REASONS])];
+const metrics = [...new Set([...INDICATOR_METRIC_CODES, ...MENTALISTA_METRICS, ...KUD_DICE_METRICS])];
+const scopes = [...new Set([...INDICATOR_SCOPES, ...MENTALISTA_SCOPES, ...KUD_DICE_SCOPES])];
+const reasons = [...new Set([...UNAVAILABILITY_REASONS, ...MENTALISTA_REASONS, ...KUD_DICE_REASONS])];
 
 const datetime = z.iso.datetime();
 const count = z.number().int().nonnegative();
@@ -17,7 +19,7 @@ export const ruleRefSchema = z.strictObject({
 });
 
 export const indicatorDefinitionSchema = z.strictObject({
-  metricCode: z.enum(metrics), taskId: z.enum(['TG-01', 'TG-03']), label: z.string().min(1), description: z.string().min(1),
+  metricCode: z.enum(metrics), taskId: taskIdSchema, label: z.string().min(1), description: z.string().min(1),
   calculation: z.string().min(1), unit: z.enum(['%', 'ms', 'points', 'count']), scopes: z.array(z.enum(scopes)).min(1), inputs: z.string().min(1),
   unavailabilityReasons: z.array(z.enum(reasons)), exclusions: z.string().min(1), rule: ruleRefSchema.nullable(),
 });
@@ -34,7 +36,7 @@ export const indicatorValueSchema = z.strictObject({
 });
 
 export const indicatorHistorySessionSchema = z.strictObject({
-  sessionId: z.uuid(), taskId: z.enum(['TG-01', 'TG-03']), attemptNumber: z.number().int().min(1).max(10).nullable(), occurredAt: datetime,
+  sessionId: z.uuid(), taskId: taskIdSchema, attemptNumber: z.number().int().min(1).max(10).nullable(), occurredAt: datetime,
   executionStatus: z.enum(['READY', 'RUNNING', 'COMPLETED', 'INTERRUPTED', 'EXPIRED', 'UNCONFIRMED']),
   processingStatus: z.enum(['NOT_RECEIVED', 'PENDING', 'PROCESSING', 'COMPLETED', 'FAILED']),
   configVersion: z.number().int().positive(), publishedVersionId: z.uuid(), incidentCount: count, recordedTrialCount: count,
@@ -51,16 +53,17 @@ export const indicatorHistoryResponseSchema = z.strictObject({
 });
 
 export const indicatorHistoryQuerySchema = z.strictObject({
-  taskId: z.enum(['TG-01', 'TG-03']).optional(), metricCode: z.enum(metrics).optional(), scope: z.enum(scopes).optional(),
+  taskId: taskIdSchema.optional(), metricCode: z.enum(metrics).optional(), scope: z.enum(scopes).optional(),
   from: day.optional(), to: day.optional(), cursor: z.string().min(1).max(512).optional(),
   limit: z.string().regex(/^\d{1,3}$/).transform(Number).pipe(z.number().int().min(1).max(100)).optional(),
 }).refine(q => validFilter(q.taskId ?? 'TG-01', q.metricCode, q.scope), 'Filtro incompatible con tarea');
 
-function validFilter(task: 'TG-01' | 'TG-03', metric?: string, scope?: string) {
-  const allowedMetrics: readonly string[] = task === 'TG-03' ? MENTALISTA_METRICS : INDICATOR_METRIC_CODES;
-  const allowedScopes: readonly string[] = task === 'TG-03' ? MENTALISTA_SCOPES : INDICATOR_SCOPES;
+function validFilter(task: z.infer<typeof taskIdSchema>, metric?: string, scope?: string) {
+  const allowedMetrics: readonly string[] = task === 'TG-07' ? KUD_DICE_METRICS : task === 'TG-03' ? MENTALISTA_METRICS : INDICATOR_METRIC_CODES;
+  const allowedScopes: readonly string[] = task === 'TG-07' ? KUD_DICE_SCOPES : task === 'TG-03' ? MENTALISTA_SCOPES : INDICATOR_SCOPES;
   return (!metric || allowedMetrics.includes(metric)) && (!scope || allowedScopes.includes(scope)) &&
-    !(task === 'TG-03' && metric && MENTALISTA_METRICS.indexOf(metric as typeof MENTALISTA_METRICS[number]) >= 7 && scope && scope !== 'SESSION');
+    !(task === 'TG-03' && metric && MENTALISTA_METRICS.indexOf(metric as typeof MENTALISTA_METRICS[number]) >= 7 && scope && scope !== 'SESSION') &&
+    !(task === 'TG-07' && metric && !KUD_DICE_LENGTH_METRICS.includes(metric) && scope && scope !== 'SESSION');
 }
 
 export type IndicatorDefinitionDto = z.infer<typeof indicatorDefinitionSchema>;
