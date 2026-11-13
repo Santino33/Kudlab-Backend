@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { uuid, uuidV4, secret, contextSchema, receiptSchema, configSchema } from './contract.js';
 import { taskIdSchema } from './profiles.js';
 import { configSchema as mentalistaConfig, preparationSchema } from './tg03/contract.js';
+import { configSchema as kudDiceConfig, preparationSchema as kudDicePreparation, envelopeSchema as kudDiceEnvelope } from './tg07/contract.js';
+import { KUD_DICE_METRICS, KUD_DICE_SCOPES, KUD_DICE_REASONS } from '../../evolucion/read/kud-dice-definitions.js';
 export const requestInput = z.strictObject({ requestId: uuidV4 });
 export const createInput = requestInput.extend({ taskId: taskIdSchema, publishedVersionId: uuid, groupId: uuid,
   studentIds: z.array(uuid).min(1).max(1000).refine(ids => new Set(ids).size === ids.length),
@@ -31,7 +33,15 @@ export const mentalistaDetailSchema = tg01Detail.extend({ taskId: z.literal('TG-
   preparation: preparationSchema.nullable(), extraResponseCount: count,
   calculation: tg01Detail.shape.calculation.unwrap().extend({ ruleCode: z.literal('TG03-DESCRIPTIVE-1'), indicators: z.array(mentalistaIndicatorSchema) }).nullable(),
 });
-export const sessionDetailSchema = z.discriminatedUnion('taskId', [tg01Detail, mentalistaDetailSchema]);
+export const kudDiceIndicatorSchema = indicatorSchema.extend({
+  metricCode: z.enum(KUD_DICE_METRICS), scope: z.enum(KUD_DICE_SCOPES), unit: z.enum(['%', 'ms', 'points', 'count']),
+  unavailabilityReason: z.enum(KUD_DICE_REASONS).nullable(),
+});
+export const kudDiceDetailSchema = tg01Detail.extend({ taskId: z.literal('TG-07'), configuration: kudDiceConfig,
+  preparation: kudDicePreparation.nullable(), audio: kudDiceEnvelope.shape.audio.nullable(), phaseReached: kudDiceEnvelope.shape.phaseReached.nullable(),
+  calculation: tg01Detail.shape.calculation.unwrap().extend({ ruleCode: z.literal('TG07-DESCRIPTIVE-1'), indicators: z.array(kudDiceIndicatorSchema) }).nullable(),
+});
+export const sessionDetailSchema = z.discriminatedUnion('taskId', [tg01Detail, mentalistaDetailSchema, kudDiceDetailSchema]);
 export const page = (schema: z.ZodType) => z.strictObject({ items: z.array(schema), nextCursor: z.string().nullable() });
 export const codeScope = z.enum(['PLAY_AND_SUBMIT', 'SUBMIT_ONLY']);
 export const codeMetadataSchema = z.strictObject({ id: uuid, recipientId: uuid, scope: codeScope, sessionId: uuid.nullable(), status: z.enum(['ACTIVE', 'REVOKED', 'REPLACED', 'EXPIRED']), createdAt: datetime, expiresAt: datetime, lastClaimedAt: datetime.nullable(), canReveal: z.boolean(), unavailableReasons: z.array(z.string()) });
