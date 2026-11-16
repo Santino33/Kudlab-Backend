@@ -2011,6 +2011,7 @@ paths:
             type: string
             enum:
               - TG-01
+              - TG-02
               - TG-03
               - TG-07
       responses:
@@ -7798,6 +7799,99 @@ components:
               additionalProperties: false
         - type: object
           properties:
+            taskId:
+              type: string
+              const: TG-02
+            profile:
+              type: string
+              const: TG02_PALABRA_INTRUSA_V1
+            seed:
+              type: number
+              const: 20262
+            itemTimeoutMs:
+              type: number
+              const: 20000
+            anticipatoryMs:
+              type: number
+              const: 400
+            segmentCount:
+              type: number
+              const: 3
+            itemsPerSegment:
+              type: number
+              const: 6
+            itemsPerLevelPerSegment:
+              type: number
+              const: 2
+            maxRun:
+              type: number
+              const: 2
+            minRtOverall:
+              type: number
+              const: 5
+            minRtGroup:
+              type: number
+              const: 3
+            selectionHoldMs:
+              type: number
+              const: 250
+            transitionMs:
+              type: number
+              const: 500
+            practiceMaxRounds:
+              type: number
+              const: 2
+            gameBuildId:
+              type: string
+              const: tg02-palabra-intrusa-1
+            algorithmVersion:
+              type: string
+              const: original-5ce3bdc
+            referenceCommit:
+              type: string
+              const: 5ce3bdcca0e2e1bb629b390ea3b6ec681cc23b69
+            itemBankVersion:
+              type: string
+              const: 1.0.0-borrador
+            validationStatus:
+              type: string
+              const: "PENDIENTE DE VALIDACIÓN DOCENTE: vocabulario, categorías y niveles
+                generados para el prototipo; revisar antes del pilotaje."
+            bankHash:
+              type: string
+              const: 5557498c374fb545989c0e005e0e0a10a4e12293f62e429cd9858d9a5fc5ef92
+            sequenceHash:
+              type: string
+              const: d4a295d35185aaeb5b6dafb0e8ac455bcba44bf708a43a97d3441d9745b41199
+            originalSequenceHash:
+              type: string
+              const: bf1dba14
+          required:
+            - taskId
+            - profile
+            - seed
+            - itemTimeoutMs
+            - anticipatoryMs
+            - segmentCount
+            - itemsPerSegment
+            - itemsPerLevelPerSegment
+            - maxRun
+            - minRtOverall
+            - minRtGroup
+            - selectionHoldMs
+            - transitionMs
+            - practiceMaxRounds
+            - gameBuildId
+            - algorithmVersion
+            - referenceCommit
+            - itemBankVersion
+            - validationStatus
+            - bankHash
+            - sequenceHash
+            - originalSequenceHash
+          additionalProperties: false
+        - type: object
+          properties:
             profile:
               type: string
               const: TG03_MENTALISTA_V1
@@ -8325,6 +8419,183 @@ components:
                     - minimumLaneWidthUnits
                     - maximumLanes
                   additionalProperties: false
+            executionStatus:
+              type: string
+              enum:
+                - READY
+                - RUNNING
+                - COMPLETED
+                - INTERRUPTED
+                - EXPIRED
+                - UNCONFIRMED
+            attemptNumber:
+              anyOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 10
+                - type: "null"
+            startAllowedUntil:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            uploadAllowedUntil:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            serverTime:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            capabilities:
+              type: object
+              properties:
+                canStart:
+                  type: boolean
+                canSubmit:
+                  type: boolean
+                canReadReceipt:
+                  type: boolean
+              required:
+                - canStart
+                - canSubmit
+                - canReadReceipt
+              additionalProperties: false
+          required:
+            - sessionId
+            - taskId
+            - publishedVersionId
+            - configVersion
+            - configurationHash
+            - gameBuildId
+            - contractVersion
+            - config
+            - executionStatus
+            - attemptNumber
+            - startAllowedUntil
+            - uploadAllowedUntil
+            - serverTime
+            - capabilities
+          additionalProperties: false
+        - type: object
+          properties:
+            sessionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            taskId:
+              type: string
+              const: TG-02
+            publishedVersionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            gameBuildId:
+              type: string
+              const: tg02-palabra-intrusa-1
+            contractVersion:
+              type: string
+              const: "2.0"
+            config:
+              type: object
+              properties:
+                taskId:
+                  type: string
+                  const: TG-02
+                profile:
+                  type: string
+                  const: TG02_PALABRA_INTRUSA_V1
+                seed:
+                  type: number
+                  const: 20262
+                itemTimeoutMs:
+                  type: number
+                  const: 20000
+                anticipatoryMs:
+                  type: number
+                  const: 400
+                segmentCount:
+                  type: number
+                  const: 3
+                itemsPerSegment:
+                  type: number
+                  const: 6
+                itemsPerLevelPerSegment:
+                  type: number
+                  const: 2
+                maxRun:
+                  type: number
+                  const: 2
+                minRtOverall:
+                  type: number
+                  const: 5
+                minRtGroup:
+                  type: number
+                  const: 3
+                selectionHoldMs:
+                  type: number
+                  const: 250
+                transitionMs:
+                  type: number
+                  const: 500
+                practiceMaxRounds:
+                  type: number
+                  const: 2
+                gameBuildId:
+                  type: string
+                  const: tg02-palabra-intrusa-1
+                algorithmVersion:
+                  type: string
+                  const: original-5ce3bdc
+                referenceCommit:
+                  type: string
+                  const: 5ce3bdcca0e2e1bb629b390ea3b6ec681cc23b69
+                itemBankVersion:
+                  type: string
+                  const: 1.0.0-borrador
+                validationStatus:
+                  type: string
+                  const: "PENDIENTE DE VALIDACIÓN DOCENTE: vocabulario, categorías y niveles
+                    generados para el prototipo; revisar antes del pilotaje."
+                bankHash:
+                  type: string
+                  const: 5557498c374fb545989c0e005e0e0a10a4e12293f62e429cd9858d9a5fc5ef92
+                sequenceHash:
+                  type: string
+                  const: d4a295d35185aaeb5b6dafb0e8ac455bcba44bf708a43a97d3441d9745b41199
+                originalSequenceHash:
+                  type: string
+                  const: bf1dba14
+              required:
+                - taskId
+                - profile
+                - seed
+                - itemTimeoutMs
+                - anticipatoryMs
+                - segmentCount
+                - itemsPerSegment
+                - itemsPerLevelPerSegment
+                - maxRun
+                - minRtOverall
+                - minRtGroup
+                - selectionHoldMs
+                - transitionMs
+                - practiceMaxRounds
+                - gameBuildId
+                - algorithmVersion
+                - referenceCommit
+                - itemBankVersion
+                - validationStatus
+                - bankHash
+                - sequenceHash
+                - originalSequenceHash
+              additionalProperties: false
             executionStatus:
               type: string
               enum:
@@ -9170,6 +9441,602 @@ components:
             - device
             - events
             - incidents
+          additionalProperties: false
+        - type: object
+          properties:
+            sessionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            taskId:
+              type: string
+              const: TG-02
+            publishedVersionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            gameBuildId:
+              type: string
+              const: tg02-palabra-intrusa-1
+            contractVersion:
+              type: string
+              const: "2.0"
+            submissionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            state:
+              type: string
+              enum:
+                - completed
+                - interrupted
+            terminationReason:
+              type: string
+              enum:
+                - completed
+                - user_exit
+                - recovered_after_reload
+                - storage_failure
+                - evidence_limit
+                - script_error
+                - resource_load_error
+            phaseReached:
+              type: string
+              enum:
+                - loading
+                - intro
+                - transition
+                - practice
+                - countdown
+                - test
+                - done
+            clock:
+              type: object
+              properties:
+                id:
+                  type: string
+                  pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                timeOriginUnixMs:
+                  type: number
+                  minimum: 0
+              required:
+                - id
+                - timeOriginUnixMs
+              additionalProperties: false
+            timing:
+              type: object
+              properties:
+                startedAtMs:
+                  type: number
+                  minimum: 0
+                finishedAtMs:
+                  type: number
+                  minimum: 0
+                lastCheckpointAtMs:
+                  type: number
+                  minimum: 0
+                measurementStartedAtMs:
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
+                measurementFinishedAtMs:
+                  anyOf:
+                    - type: number
+                      minimum: 0
+                    - type: "null"
+                pausedMs:
+                  type: number
+                  minimum: 0
+              required:
+                - startedAtMs
+                - finishedAtMs
+                - lastCheckpointAtMs
+                - measurementStartedAtMs
+                - measurementFinishedAtMs
+                - pausedMs
+              additionalProperties: false
+            device:
+              type: object
+              properties:
+                viewportWidth:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+                viewportHeight:
+                  type: integer
+                  exclusiveMinimum: 0
+                  maximum: 9007199254740991
+                stageWidthCss:
+                  type: number
+                  minimum: 0
+                stageHeightCss:
+                  type: number
+                  minimum: 0
+                devicePixelRatio:
+                  type: number
+                  exclusiveMinimum: 0
+                touchCapable:
+                  type: boolean
+                pointerTypes:
+                  maxItems: 3
+                  type: array
+                  items:
+                    type: string
+                    enum:
+                      - mouse
+                      - touch
+                      - pen
+              required:
+                - viewportWidth
+                - viewportHeight
+                - stageWidthCss
+                - stageHeightCss
+                - devicePixelRatio
+                - touchCapable
+                - pointerTypes
+              additionalProperties: false
+            preparation:
+              type: object
+              properties:
+                instruction:
+                  type: object
+                  properties:
+                    shownAtMs:
+                      anyOf:
+                        - type: number
+                          minimum: 0
+                        - type: "null"
+                    acceptedAtMs:
+                      anyOf:
+                        - type: number
+                          minimum: 0
+                        - type: "null"
+                    repeats:
+                      type: integer
+                      minimum: 0
+                      maximum: 1000
+                  required:
+                    - shownAtMs
+                    - acceptedAtMs
+                    - repeats
+                  additionalProperties: false
+                practiceCompleted:
+                  type: boolean
+                practice:
+                  maxItems: 2
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      round:
+                        type: integer
+                        minimum: 1
+                        maximum: 2
+                      items:
+                        minItems: 1
+                        maxItems: 3
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            trial:
+                              type: integer
+                              minimum: 1
+                              maximum: 18
+                            itemId:
+                              type: string
+                              minLength: 1
+                              maxLength: 16
+                            category:
+                              type: string
+                              minLength: 1
+                              maxLength: 100
+                            level:
+                              type: integer
+                              minimum: 1
+                              maximum: 3
+                            segment:
+                              anyOf:
+                                - type: integer
+                                  minimum: 1
+                                  maximum: 3
+                                - type: "null"
+                            words:
+                              minItems: 4
+                              maxItems: 4
+                              type: array
+                              items:
+                                type: string
+                                minLength: 1
+                                maxLength: 100
+                            targetIdx:
+                              type: integer
+                              minimum: 0
+                              maximum: 3
+                            selectedIdx:
+                              anyOf:
+                                - type: integer
+                                  minimum: 0
+                                  maximum: 3
+                                - type: "null"
+                            presentedAtMs:
+                              type: number
+                              minimum: 0
+                            respondedAtMs:
+                              anyOf:
+                                - type: number
+                                  minimum: 0
+                                - type: "null"
+                            closedAtMs:
+                              type: number
+                              minimum: 0
+                            rtMs:
+                              anyOf:
+                                - type: number
+                                  minimum: 0
+                                - type: "null"
+                            result:
+                              anyOf:
+                                - type: string
+                                  enum:
+                                    - correct
+                                    - incorrect
+                                    - omission
+                                - type: "null"
+                            valid:
+                              type: boolean
+                            invalidReason:
+                              anyOf:
+                                - type: string
+                                  enum:
+                                    - tab_hidden
+                                    - focus_lost
+                                    - interruption
+                                    - storage_failure
+                                    - evidence_limit
+                                - type: "null"
+                            anticipatory:
+                              type: boolean
+                            closureReason:
+                              type: string
+                              enum:
+                                - response
+                                - timeout
+                                - interruption
+                            pointerType:
+                              anyOf:
+                                - type: string
+                                  enum:
+                                    - mouse
+                                    - touch
+                                    - pen
+                                - type: "null"
+                            responseX:
+                              anyOf:
+                                - type: number
+                                - type: "null"
+                            responseY:
+                              anyOf:
+                                - type: number
+                                - type: "null"
+                          required:
+                            - trial
+                            - itemId
+                            - category
+                            - level
+                            - segment
+                            - words
+                            - targetIdx
+                            - selectedIdx
+                            - presentedAtMs
+                            - respondedAtMs
+                            - closedAtMs
+                            - rtMs
+                            - result
+                            - valid
+                            - invalidReason
+                            - anticipatory
+                            - closureReason
+                            - pointerType
+                            - responseX
+                            - responseY
+                          additionalProperties: false
+                      errors:
+                        type: integer
+                        minimum: 0
+                        maximum: 3
+                    required:
+                      - round
+                      - items
+                      - errors
+                    additionalProperties: false
+              required:
+                - instruction
+                - practiceCompleted
+                - practice
+              additionalProperties: false
+            events:
+              maxItems: 18
+              type: array
+              items:
+                type: object
+                properties:
+                  trial:
+                    type: integer
+                    minimum: 1
+                    maximum: 18
+                  itemId:
+                    type: string
+                    minLength: 1
+                    maxLength: 16
+                  category:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  level:
+                    type: integer
+                    minimum: 1
+                    maximum: 3
+                  segment:
+                    anyOf:
+                      - type: integer
+                        minimum: 1
+                        maximum: 3
+                      - type: "null"
+                  words:
+                    minItems: 4
+                    maxItems: 4
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                  targetIdx:
+                    type: integer
+                    minimum: 0
+                    maximum: 3
+                  selectedIdx:
+                    anyOf:
+                      - type: integer
+                        minimum: 0
+                        maximum: 3
+                      - type: "null"
+                  presentedAtMs:
+                    type: number
+                    minimum: 0
+                  respondedAtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  closedAtMs:
+                    type: number
+                    minimum: 0
+                  rtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  result:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - correct
+                          - incorrect
+                          - omission
+                      - type: "null"
+                  valid:
+                    type: boolean
+                  invalidReason:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - tab_hidden
+                          - focus_lost
+                          - interruption
+                          - storage_failure
+                          - evidence_limit
+                      - type: "null"
+                  anticipatory:
+                    type: boolean
+                  closureReason:
+                    type: string
+                    enum:
+                      - response
+                      - timeout
+                      - interruption
+                  pointerType:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - mouse
+                          - touch
+                          - pen
+                      - type: "null"
+                  responseX:
+                    anyOf:
+                      - type: number
+                      - type: "null"
+                  responseY:
+                    anyOf:
+                      - type: number
+                      - type: "null"
+                required:
+                  - trial
+                  - itemId
+                  - category
+                  - level
+                  - segment
+                  - words
+                  - targetIdx
+                  - selectedIdx
+                  - presentedAtMs
+                  - respondedAtMs
+                  - closedAtMs
+                  - rtMs
+                  - result
+                  - valid
+                  - invalidReason
+                  - anticipatory
+                  - closureReason
+                  - pointerType
+                  - responseX
+                  - responseY
+                additionalProperties: false
+            incidents:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  sequence:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  type:
+                    type: string
+                    enum:
+                      - tab_hidden
+                      - tab_visible
+                      - loss_of_focus
+                      - focus_regained
+                      - script_error
+                      - resource_load_error
+                      - small_stage
+                      - transition_skipped
+                      - transition_back_skipped
+                      - network_lost
+                      - network_restored
+                      - storage_failure
+                      - recovered_after_reload
+                      - evidence_limit
+                  phase:
+                    type: string
+                    enum:
+                      - loading
+                      - intro
+                      - transition
+                      - practice
+                      - countdown
+                      - test
+                      - done
+                  clockId:
+                    anyOf:
+                      - type: string
+                        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                      - type: "null"
+                  atMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  recordedAtClient:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  durationMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  detail:
+                    anyOf:
+                      - type: string
+                        maxLength: 300
+                      - type: "null"
+                required:
+                  - sequence
+                  - type
+                  - phase
+                  - clockId
+                  - atMs
+                  - recordedAtClient
+                  - durationMs
+                  - detail
+                additionalProperties: false
+            pauses:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  startMs:
+                    type: number
+                    minimum: 0
+                  endMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                required:
+                  - startMs
+                  - endMs
+                additionalProperties: false
+            emptyResponses:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  atMs:
+                    type: number
+                    minimum: 0
+                  pointerType:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - mouse
+                          - touch
+                          - pen
+                      - type: "null"
+                  x:
+                    type: number
+                  y:
+                    type: number
+                  region:
+                    type: string
+                    enum:
+                      - locked
+                      - outside_cards
+                  segment:
+                    type: integer
+                    minimum: 1
+                    maximum: 3
+                required:
+                  - atMs
+                  - pointerType
+                  - x
+                  - y
+                  - region
+                  - segment
+                additionalProperties: false
+          required:
+            - sessionId
+            - taskId
+            - publishedVersionId
+            - configVersion
+            - configurationHash
+            - gameBuildId
+            - contractVersion
+            - submissionId
+            - state
+            - terminationReason
+            - phaseReached
+            - clock
+            - timing
+            - device
+            - preparation
+            - events
+            - incidents
+            - pauses
+            - emptyResponses
           additionalProperties: false
         - type: object
           properties:
@@ -10282,6 +11149,7 @@ components:
           type: string
           enum:
             - TG-01
+            - TG-02
             - TG-03
             - TG-07
         title:
@@ -10403,6 +11271,7 @@ components:
           type: string
           enum:
             - TG-01
+            - TG-02
             - TG-03
             - TG-07
         title:
@@ -10480,6 +11349,7 @@ components:
                 type: string
                 enum:
                   - TG-01
+                  - TG-02
                   - TG-03
                   - TG-07
               title:
@@ -10560,6 +11430,7 @@ components:
           type: string
           enum:
             - TG-01
+            - TG-02
             - TG-03
             - TG-07
         publishedVersionId:
@@ -10645,6 +11516,7 @@ components:
           type: string
           enum:
             - TG-01
+            - TG-02
             - TG-03
             - TG-07
         assignmentId:
@@ -11192,6 +12064,629 @@ components:
             - device
             - receipt
             - calculation
+          additionalProperties: false
+        - type: object
+          properties:
+            id:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            studentId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            taskId:
+              type: string
+              const: TG-02
+            assignmentId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            attemptNumber:
+              anyOf:
+                - type: integer
+                  minimum: 1
+                  maximum: 10
+                - type: "null"
+            launchMode:
+              type: string
+              enum:
+                - SUPERVISED
+                - CODE
+            configVersion:
+              type: integer
+              exclusiveMinimum: 0
+              maximum: 9007199254740991
+            gameBuildId:
+              type: string
+            executionStatus:
+              type: string
+              enum:
+                - READY
+                - RUNNING
+                - COMPLETED
+                - INTERRUPTED
+                - EXPIRED
+                - UNCONFIRMED
+            processingStatus:
+              type: string
+              enum:
+                - NOT_RECEIVED
+                - PENDING
+                - PROCESSING
+                - COMPLETED
+                - FAILED
+            preparedAt:
+              type: string
+              format: date-time
+              pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+            startedAtServer:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            receivedAt:
+              anyOf:
+                - type: string
+                  format: date-time
+                  pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                - type: "null"
+            incidentCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            recordedTrialCount:
+              type: integer
+              minimum: 0
+              maximum: 9007199254740991
+            publishedVersionId:
+              type: string
+              pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+            configurationHash:
+              type: string
+              pattern: ^[a-f0-9]{64}$
+            configuration:
+              type: object
+              properties:
+                taskId:
+                  type: string
+                  const: TG-02
+                profile:
+                  type: string
+                  const: TG02_PALABRA_INTRUSA_V1
+                seed:
+                  type: number
+                  const: 20262
+                itemTimeoutMs:
+                  type: number
+                  const: 20000
+                anticipatoryMs:
+                  type: number
+                  const: 400
+                segmentCount:
+                  type: number
+                  const: 3
+                itemsPerSegment:
+                  type: number
+                  const: 6
+                itemsPerLevelPerSegment:
+                  type: number
+                  const: 2
+                maxRun:
+                  type: number
+                  const: 2
+                minRtOverall:
+                  type: number
+                  const: 5
+                minRtGroup:
+                  type: number
+                  const: 3
+                selectionHoldMs:
+                  type: number
+                  const: 250
+                transitionMs:
+                  type: number
+                  const: 500
+                practiceMaxRounds:
+                  type: number
+                  const: 2
+                gameBuildId:
+                  type: string
+                  const: tg02-palabra-intrusa-1
+                algorithmVersion:
+                  type: string
+                  const: original-5ce3bdc
+                referenceCommit:
+                  type: string
+                  const: 5ce3bdcca0e2e1bb629b390ea3b6ec681cc23b69
+                itemBankVersion:
+                  type: string
+                  const: 1.0.0-borrador
+                validationStatus:
+                  type: string
+                  const: "PENDIENTE DE VALIDACIÓN DOCENTE: vocabulario, categorías y niveles
+                    generados para el prototipo; revisar antes del pilotaje."
+                bankHash:
+                  type: string
+                  const: 5557498c374fb545989c0e005e0e0a10a4e12293f62e429cd9858d9a5fc5ef92
+                sequenceHash:
+                  type: string
+                  const: d4a295d35185aaeb5b6dafb0e8ac455bcba44bf708a43a97d3441d9745b41199
+                originalSequenceHash:
+                  type: string
+                  const: bf1dba14
+              required:
+                - taskId
+                - profile
+                - seed
+                - itemTimeoutMs
+                - anticipatoryMs
+                - segmentCount
+                - itemsPerSegment
+                - itemsPerLevelPerSegment
+                - maxRun
+                - minRtOverall
+                - minRtGroup
+                - selectionHoldMs
+                - transitionMs
+                - practiceMaxRounds
+                - gameBuildId
+                - algorithmVersion
+                - referenceCommit
+                - itemBankVersion
+                - validationStatus
+                - bankHash
+                - sequenceHash
+                - originalSequenceHash
+              additionalProperties: false
+            declaredState:
+              anyOf:
+                - type: string
+                  enum:
+                    - completed
+                    - interrupted
+                - type: "null"
+            terminationReason:
+              anyOf:
+                - type: string
+                - type: "null"
+            measuredDurationMs:
+              anyOf:
+                - type: number
+                  minimum: 0
+                - type: "null"
+            device:
+              anyOf:
+                - type: object
+                  propertyNames:
+                    type: string
+                  additionalProperties: {}
+                - type: "null"
+            receipt:
+              anyOf:
+                - type: object
+                  properties:
+                    receiptId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    sessionId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    submissionId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    receivedAt:
+                      type: string
+                      format: date-time
+                      pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                    evidenceHash:
+                      type: string
+                      pattern: ^[a-f0-9]{64}$
+                    processingStatusAtReceipt:
+                      type: string
+                      const: PENDING
+                  required:
+                    - receiptId
+                    - sessionId
+                    - submissionId
+                    - receivedAt
+                    - evidenceHash
+                    - processingStatusAtReceipt
+                  additionalProperties: false
+                - type: "null"
+            calculation:
+              anyOf:
+                - type: object
+                  properties:
+                    runId:
+                      type: string
+                      pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
+                    ruleCode:
+                      type: string
+                      const: TG02-DESCRIPTIVE-1
+                    ruleVersion:
+                      type: integer
+                      exclusiveMinimum: 0
+                      maximum: 9007199254740991
+                    status:
+                      type: string
+                      enum:
+                        - PENDING
+                        - PROCESSING
+                        - SUCCEEDED
+                        - FAILED
+                    calculatedAt:
+                      anyOf:
+                        - type: string
+                          format: date-time
+                          pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                        - type: "null"
+                    summary:
+                      type: object
+                      propertyNames:
+                        type: string
+                      additionalProperties: {}
+                    indicators:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          metricCode:
+                            type: string
+                            enum:
+                              - accuracy_pct
+                              - error_rate_pct
+                              - omission_rate_pct
+                              - median_reaction_time_ms
+                              - mean_reaction_time_ms
+                              - rt_sd_ms
+                              - rt_cv_pct
+                          scope:
+                            type: string
+                            enum:
+                              - SESSION
+                              - LEVEL_1
+                              - LEVEL_2
+                              - LEVEL_3
+                              - SEGMENT_1
+                              - SEGMENT_2
+                              - SEGMENT_3
+                          status:
+                            type: string
+                            enum:
+                              - CALCULATED
+                              - NOT_AVAILABLE
+                          value:
+                            anyOf:
+                              - type: number
+                              - type: "null"
+                          unit:
+                            type: string
+                            enum:
+                              - "%"
+                              - ms
+                          numerator:
+                            anyOf:
+                              - type: integer
+                                minimum: 0
+                                maximum: 9007199254740991
+                              - type: "null"
+                          denominator:
+                            anyOf:
+                              - type: integer
+                                minimum: 0
+                                maximum: 9007199254740991
+                              - type: "null"
+                          sampleSize:
+                            type: integer
+                            minimum: 0
+                            maximum: 9007199254740991
+                          unavailabilityReason:
+                            anyOf:
+                              - type: string
+                                enum:
+                                  - NO_VALID_ITEMS
+                                  - INSUFFICIENT_RT_DATA
+                                  - METHOD_NOT_APPROVED
+                              - type: "null"
+                        required:
+                          - metricCode
+                          - scope
+                          - status
+                          - value
+                          - unit
+                          - numerator
+                          - denominator
+                          - sampleSize
+                          - unavailabilityReason
+                        additionalProperties: false
+                  required:
+                    - runId
+                    - ruleCode
+                    - ruleVersion
+                    - status
+                    - calculatedAt
+                    - summary
+                    - indicators
+                  additionalProperties: false
+                - type: "null"
+            preparation:
+              anyOf:
+                - type: object
+                  properties:
+                    instruction:
+                      type: object
+                      properties:
+                        shownAtMs:
+                          anyOf:
+                            - type: number
+                              minimum: 0
+                            - type: "null"
+                        acceptedAtMs:
+                          anyOf:
+                            - type: number
+                              minimum: 0
+                            - type: "null"
+                        repeats:
+                          type: integer
+                          minimum: 0
+                          maximum: 1000
+                      required:
+                        - shownAtMs
+                        - acceptedAtMs
+                        - repeats
+                      additionalProperties: false
+                    practiceCompleted:
+                      type: boolean
+                    practice:
+                      maxItems: 2
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          round:
+                            type: integer
+                            minimum: 1
+                            maximum: 2
+                          items:
+                            minItems: 1
+                            maxItems: 3
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                trial:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 18
+                                itemId:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 16
+                                category:
+                                  type: string
+                                  minLength: 1
+                                  maxLength: 100
+                                level:
+                                  type: integer
+                                  minimum: 1
+                                  maximum: 3
+                                segment:
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 1
+                                      maximum: 3
+                                    - type: "null"
+                                words:
+                                  minItems: 4
+                                  maxItems: 4
+                                  type: array
+                                  items:
+                                    type: string
+                                    minLength: 1
+                                    maxLength: 100
+                                targetIdx:
+                                  type: integer
+                                  minimum: 0
+                                  maximum: 3
+                                selectedIdx:
+                                  anyOf:
+                                    - type: integer
+                                      minimum: 0
+                                      maximum: 3
+                                    - type: "null"
+                                presentedAtMs:
+                                  type: number
+                                  minimum: 0
+                                respondedAtMs:
+                                  anyOf:
+                                    - type: number
+                                      minimum: 0
+                                    - type: "null"
+                                closedAtMs:
+                                  type: number
+                                  minimum: 0
+                                rtMs:
+                                  anyOf:
+                                    - type: number
+                                      minimum: 0
+                                    - type: "null"
+                                result:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - correct
+                                        - incorrect
+                                        - omission
+                                    - type: "null"
+                                valid:
+                                  type: boolean
+                                invalidReason:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - tab_hidden
+                                        - focus_lost
+                                        - interruption
+                                        - storage_failure
+                                        - evidence_limit
+                                    - type: "null"
+                                anticipatory:
+                                  type: boolean
+                                closureReason:
+                                  type: string
+                                  enum:
+                                    - response
+                                    - timeout
+                                    - interruption
+                                pointerType:
+                                  anyOf:
+                                    - type: string
+                                      enum:
+                                        - mouse
+                                        - touch
+                                        - pen
+                                    - type: "null"
+                                responseX:
+                                  anyOf:
+                                    - type: number
+                                    - type: "null"
+                                responseY:
+                                  anyOf:
+                                    - type: number
+                                    - type: "null"
+                              required:
+                                - trial
+                                - itemId
+                                - category
+                                - level
+                                - segment
+                                - words
+                                - targetIdx
+                                - selectedIdx
+                                - presentedAtMs
+                                - respondedAtMs
+                                - closedAtMs
+                                - rtMs
+                                - result
+                                - valid
+                                - invalidReason
+                                - anticipatory
+                                - closureReason
+                                - pointerType
+                                - responseX
+                                - responseY
+                              additionalProperties: false
+                          errors:
+                            type: integer
+                            minimum: 0
+                            maximum: 3
+                        required:
+                          - round
+                          - items
+                          - errors
+                        additionalProperties: false
+                  required:
+                    - instruction
+                    - practiceCompleted
+                    - practice
+                  additionalProperties: false
+                - type: "null"
+            phaseReached:
+              anyOf:
+                - type: string
+                  enum:
+                    - loading
+                    - intro
+                    - transition
+                    - practice
+                    - countdown
+                    - test
+                    - done
+                - type: "null"
+            pauses:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  startMs:
+                    type: number
+                    minimum: 0
+                  endMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                required:
+                  - startMs
+                  - endMs
+                additionalProperties: false
+            emptyResponses:
+              maxItems: 1000
+              type: array
+              items:
+                type: object
+                properties:
+                  atMs:
+                    type: number
+                    minimum: 0
+                  pointerType:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - mouse
+                          - touch
+                          - pen
+                      - type: "null"
+                  x:
+                    type: number
+                  y:
+                    type: number
+                  region:
+                    type: string
+                    enum:
+                      - locked
+                      - outside_cards
+                  segment:
+                    type: integer
+                    minimum: 1
+                    maximum: 3
+                required:
+                  - atMs
+                  - pointerType
+                  - x
+                  - y
+                  - region
+                  - segment
+                additionalProperties: false
+          required:
+            - id
+            - studentId
+            - taskId
+            - assignmentId
+            - attemptNumber
+            - launchMode
+            - configVersion
+            - gameBuildId
+            - executionStatus
+            - processingStatus
+            - preparedAt
+            - startedAtServer
+            - receivedAt
+            - incidentCount
+            - recordedTrialCount
+            - publishedVersionId
+            - configurationHash
+            - configuration
+            - declaredState
+            - terminationReason
+            - measuredDurationMs
+            - device
+            - receipt
+            - calculation
+            - preparation
+            - phaseReached
+            - pauses
+            - emptyResponses
           additionalProperties: false
         - type: object
           properties:
@@ -12455,6 +13950,7 @@ components:
                 type: string
                 enum:
                   - TG-01
+                  - TG-02
                   - TG-03
                   - TG-07
               assignmentId:
@@ -12937,6 +14433,132 @@ components:
                 additionalProperties: false
               - type: object
                 properties:
+                  trial:
+                    type: integer
+                    minimum: 1
+                    maximum: 18
+                  itemId:
+                    type: string
+                    minLength: 1
+                    maxLength: 16
+                  category:
+                    type: string
+                    minLength: 1
+                    maxLength: 100
+                  level:
+                    type: integer
+                    minimum: 1
+                    maximum: 3
+                  segment:
+                    anyOf:
+                      - type: integer
+                        minimum: 1
+                        maximum: 3
+                      - type: "null"
+                  words:
+                    minItems: 4
+                    maxItems: 4
+                    type: array
+                    items:
+                      type: string
+                      minLength: 1
+                      maxLength: 100
+                  targetIdx:
+                    type: integer
+                    minimum: 0
+                    maximum: 3
+                  selectedIdx:
+                    anyOf:
+                      - type: integer
+                        minimum: 0
+                        maximum: 3
+                      - type: "null"
+                  presentedAtMs:
+                    type: number
+                    minimum: 0
+                  respondedAtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  closedAtMs:
+                    type: number
+                    minimum: 0
+                  rtMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  result:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - correct
+                          - incorrect
+                          - omission
+                      - type: "null"
+                  valid:
+                    type: boolean
+                  invalidReason:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - tab_hidden
+                          - focus_lost
+                          - interruption
+                          - storage_failure
+                          - evidence_limit
+                      - type: "null"
+                  anticipatory:
+                    type: boolean
+                  closureReason:
+                    type: string
+                    enum:
+                      - response
+                      - timeout
+                      - interruption
+                  pointerType:
+                    anyOf:
+                      - type: string
+                        enum:
+                          - mouse
+                          - touch
+                          - pen
+                      - type: "null"
+                  responseX:
+                    anyOf:
+                      - type: number
+                      - type: "null"
+                  responseY:
+                    anyOf:
+                      - type: number
+                      - type: "null"
+                  calculationDecision: {}
+                required:
+                  - trial
+                  - itemId
+                  - category
+                  - level
+                  - segment
+                  - words
+                  - targetIdx
+                  - selectedIdx
+                  - presentedAtMs
+                  - respondedAtMs
+                  - closedAtMs
+                  - rtMs
+                  - result
+                  - valid
+                  - invalidReason
+                  - anticipatory
+                  - closureReason
+                  - pointerType
+                  - responseX
+                  - responseY
+                  - calculationDecision
+                additionalProperties: false
+              - type: object
+                properties:
                   sequence:
                     type: integer
                     exclusiveMinimum: 0
@@ -13029,6 +14651,75 @@ components:
                     anyOf:
                       - type: string
                         pattern: ^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$
+                      - type: "null"
+                  atMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  recordedAtClient:
+                    anyOf:
+                      - type: string
+                        format: date-time
+                        pattern: ^(?:(?:\d\d[2468][048]|\d\d[13579][26]|\d\d0[48]|[02468][048]00|[13579][26]00)-02-29|\d{4}-(?:(?:0[13578]|1[02])-(?:0[1-9]|[12]\d|3[01])|(?:0[469]|11)-(?:0[1-9]|[12]\d|30)|(?:02)-(?:0[1-9]|1\d|2[0-8])))T(?:(?:[01]\d|2[0-3]):[0-5]\d(?::[0-5]\d(?:\.\d+)?)?(?:Z))$
+                      - type: "null"
+                  durationMs:
+                    anyOf:
+                      - type: number
+                        minimum: 0
+                      - type: "null"
+                  detail:
+                    anyOf:
+                      - type: string
+                        maxLength: 300
+                      - type: "null"
+                required:
+                  - sequence
+                  - type
+                  - phase
+                  - clockId
+                  - atMs
+                  - recordedAtClient
+                  - durationMs
+                  - detail
+                additionalProperties: false
+              - type: object
+                properties:
+                  sequence:
+                    type: integer
+                    exclusiveMinimum: 0
+                    maximum: 9007199254740991
+                  type:
+                    type: string
+                    enum:
+                      - tab_hidden
+                      - tab_visible
+                      - loss_of_focus
+                      - focus_regained
+                      - script_error
+                      - resource_load_error
+                      - small_stage
+                      - transition_skipped
+                      - transition_back_skipped
+                      - network_lost
+                      - network_restored
+                      - storage_failure
+                      - recovered_after_reload
+                      - evidence_limit
+                  phase:
+                    type: string
+                    enum:
+                      - loading
+                      - intro
+                      - transition
+                      - practice
+                      - countdown
+                      - test
+                      - done
+                  clockId:
+                    anyOf:
+                      - type: string
+                        pattern: ^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$
                       - type: "null"
                   atMs:
                     anyOf:
@@ -13458,6 +15149,7 @@ components:
                 type: string
                 enum:
                   - TG-01
+                  - TG-02
                   - TG-03
                   - TG-07
               title:

@@ -134,6 +134,13 @@
       "when": 1794586667283,
       "tag": "0018_tg07_kud_dice",
       "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1794590100952,
+      "tag": "0019_tg02_palabra_intrusa",
+      "breakpoints": true
     }
   ]
 }
